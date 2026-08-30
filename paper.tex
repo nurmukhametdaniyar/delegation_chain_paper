@@ -6,8 +6,7 @@
        Cross-Organizational Agent Authorization}
 
 \author{
-    Daniyar Nurmukhamet\thanks{Contact: \texttt{nurmuhamet.d@edu.ektu.kz}. Working draft;
-    not for citation.} \\
+    Daniyar Nurmukhamet\thanks{Contact: \texttt{nurmuhamet.d@edu.ektu.kz}.} \\
     School of Digital Technologies and Artificial Intelligence \\
     D. Serikbayev East Kazakhstan Technical University \\
     \"Oskemen, Kazakhstan
@@ -29,14 +28,16 @@ parameter values were sanctioned rather than just the action type, or that the
 authorization chain leading to the call was not tampered with. Existing
 authorization protocols address subsets of these properties but do not
 jointly satisfy them. We propose DelegationChain, a protocol providing
-parameter-bound, aggregatable, offline-verifiable authorization proofs for
-cross-organizational agent invocations. The protocol uses BLS12-381 signatures
+parameter-bound, aggregatable authorization proofs that a receiving
+organization verifies locally, without a synchronous call to the issuing
+authority on the dominant path. The protocol uses BLS12-381 signatures
 with proof-of-possession, a recursive chain digest construction enabling
 compact aggregate signatures across $N$-hop delegations, a typed declarative
-policy expression language with decidable subset relations, and a federated
+policy expression language with a polynomial-time, sound scope
+containment check, and a federated
 identity registry model that permits interoperation between mutually
 distrusting organizations without a shared trust anchor. We define a threat
-model covering seventeen attack classes, describe the protocol's
+model organized into six families of attack, describe the protocol's
 cryptographic and operational components, and present a preliminary security
 analysis. We discuss limitations, including the absence at this stage of an
 empirical performance evaluation and machine-checked security proofs, and
@@ -52,11 +53,9 @@ Software agents built on large language models are increasingly deployed in
 configurations where they invoke external tools and delegate sub-tasks to
 other agents. The Model Context Protocol \citep{anthropic-mcp}, introduced in
 late 2024, has emerged as a widely-adopted standard for this interaction
-pattern, with reported adoption across thousands of integrating services.
-As deployment scales, an architectural pattern is becoming common: agents
-operated by one organization invoke tools or delegate work to agents
-operated by another. Industry observers have called the resulting
-multi-organizational ecosystem the inter-agent economy.
+pattern. As deployment scales, an architectural pattern is becoming
+common: agents operated by one organization invoke tools or delegate
+work to agents operated by another.
 
 Cross-organizational agent invocation creates an authorization problem that
 existing infrastructure does not adequately address. Consider an agent at
@@ -86,11 +85,10 @@ workload identity within a trust domain but does not include parameter binding
 or delegation chains. UCAN \citep{ucan-spec} extends capability delegation to
 public-key settings but is designed for Web3 contexts and does not address
 MCP integration, BLS aggregation, or policy language formalization. Recent
-MCP-specific proposals such as AGENTBOUND \citep{buhler2025agentbound} and
-the access-control mechanisms identified by \citet{huang2026inch} and
-\citet{maloyan2026breaking} provide single-organization runtime enforcement
-or measure the gap, but do not provide cross-organizational cryptographic
-proofs. The Agent Identity Protocol \citep{prakash2026aip} introduces
+MCP-specific proposals such as AgentBound \citep{buhler2026agentbound}
+provide single-organization runtime enforcement, and measurement work
+\citep{zhou2026mcpauth, maloyan2026breaking} establishes the size of the
+gap, but neither provides cross-organizational cryptographic proofs. The Agent Identity Protocol \citep{prakash2026aip} introduces
 invocation-bound capability tokens for cross-protocol delegation but does not
 incorporate aggregatable signatures, the formal policy language we present,
 or the federated identity infrastructure.
@@ -103,24 +101,29 @@ cryptographic verification across organizations without a shared root of
 trust; binding of authorization to exact parameter values, not merely action
 types; compact aggregate signatures across multi-hop delegation chains; and
 verification that requires no synchronous calls to the issuing authority
-during the dominant path. The protocol is constructed on BLS12-381
-signatures \citep{boneh2001bls, ietf-bls-signature} with proof-of-possession
+during the dominant path. The protocol is constructed on BLS
+signatures \citep{boneh2001bls, ietf-bls-signature} over the BLS12-381
+curve \citep{ietf-pairing-curves}, with proof-of-possession
 registration, a recursive chain digest construction enabling chain integrity
-under aggregation, a typed declarative policy language with decidability
-guarantees, and a federated organizational registry model.
+under aggregation, a typed declarative policy language with termination
+and containment guarantees, and a federated organizational registry
+model.
 
 \paragraph{Contributions.}
 This paper makes four contributions. First, we define a threat model for
-cross-organizational agent invocation that explicitly covers seventeen
-distinct attack classes spanning protocol-level attacks, identity
-infrastructure attacks, and threats specific to LLM-based agent systems
-such as prompt injection within permitted policy
+cross-organizational agent invocation organized into six families of
+attack, spanning protocol-level attacks, identity infrastructure
+attacks, and threats specific to LLM-based agent systems such as prompt
+injection within permitted policy, and separating the families the
+protocol prevents from the one it merely bounds
 (\cref{sec:threat-model}). Second, we specify the protocol's cryptographic
 core, wire format, verifier algorithm, and identity infrastructure
 (\cref{sec:protocol,sec:identity}) to a level of detail sufficient for an
 independent reference implementation. Third, we introduce a typed
-declarative policy expression language with a formal grammar, decidable
-subset relation, and proof of evaluator termination (\cref{sec:policy}),
+declarative policy expression language with a formal grammar, a
+polynomial-time scope containment procedure that is sound with respect
+to a semantic subset relation, and a proof of evaluator termination
+(\cref{sec:policy}),
 which we argue is sufficiently expressive for realistic enterprise
 authorization while remaining free of the injection and denial-of-service
 hazards of general-purpose policy languages. Fourth, we provide a
@@ -173,16 +176,21 @@ unknown agent has no cryptographic basis on which to decide whether the
 invocation is authorized. The protocol's current security guidance relies
 on transport-layer authentication (typically OAuth) which addresses caller
 identity but not the broader authorization questions enumerated in
-\cref{sec:introduction}. Empirical measurements of deployed MCP servers
-\citep{huang2026inch} have found a substantial fraction lacking even basic
-caller identity verification.
+\cref{sec:introduction}. The gap is not hypothetical: a measurement study
+of real-world remote MCP servers \citep{zhou2026mcpauth} identified 7,973
+live servers and found that 40.55\% expose tools without any
+authentication at all, and that among the OAuth-enabled servers it was
+able to probe, every one exhibited at least one authentication flaw.
 
 \subsection{BLS Signatures and Aggregation}
 \label{sec:bg-bls}
 
 The Boneh-Lynn-Shacham (BLS) signature scheme \citep{boneh2001bls} is a
 signature scheme constructed from bilinear pairings on elliptic curves.
-On the BLS12-381 curve \citep{ietf-bls-signature}, signatures consist of
+The scheme is specified for interoperable use by
+\citet{ietf-bls-signature}; the curve we adopt, BLS12-381, is specified
+separately by \citet{ietf-pairing-curves}. On that curve, signatures
+consist of
 a single point in $\G{2}$ (96 bytes compressed) and public keys consist
 of a single point in $\G{1}$ (48 bytes compressed). Signing requires one
 scalar multiplication; verification requires evaluation of a bilinear
@@ -190,11 +198,20 @@ pairing.
 
 The property that makes BLS signatures particularly attractive for our
 setting is \emph{signature aggregation}. Given signatures
-$\sigma_1, \ldots, \sigma_n$ produced by distinct signers on distinct
-messages, their sum $\sigma_{\text{agg}} = \sum_i \sigma_i$ is itself a
-valid object in $\G{2}$, and its validity with respect to the signing
-public keys and messages can be checked via a single multi-pairing
-operation \citep{boneh2018compact}. This aggregation has two consequences
+$\sigma_1, \ldots, \sigma_n$ on distinct messages
+$m_1, \ldots, m_n$, their sum $\sigma_{\text{agg}} = \sum_i \sigma_i$ is
+itself a valid object in $\G{2}$, and its validity with respect to the
+signing public keys and messages can be checked via a single
+multi-pairing operation \citep{boneh2018compact}.
+
+The precondition for aggregate unforgeability under proof-of-possession
+is that the \emph{messages} be distinct; the signers need not be. The
+distinction matters for delegation chains, where the same agent may
+legitimately appear at more than one hop --- a chain
+$A \rightarrow B \rightarrow A$ is a normal pattern, not an attack ---
+and where the recursive chain digest of \cref{sec:protocol-digest}
+guarantees distinct messages at every hop by construction, since each
+$m_k$ commits to $m_{k-1}$. Aggregation has two consequences
 relevant to our design.
 
 First, the bandwidth required to transmit $n$ signatures is reduced to a
@@ -228,11 +245,26 @@ themselves hold.
 
 Macaroons \citep{birgisson2014macaroons} apply this model to web
 authorization. A macaroon is an HMAC chain in which each link adds
-``caveats'' --- predicates restricting the macaroon's use. Verification
-recomputes the HMAC chain using a shared secret known to the verifier.
-This works well within a single trust domain but does not extend cleanly
-across organizational boundaries, because organizations do not generally
-share HMAC secrets.
+``caveats'' --- predicates restricting the macaroon's use. First-party
+caveats are checked by the target service itself, and verification
+recomputes the HMAC chain using a secret that the target service knows.
+
+Macaroons do address the cross-domain case, through \emph{third-party
+caveats}. A caveat may name a principal other than the target service;
+to use the macaroon, the holder must obtain a \emph{discharge macaroon}
+from that principal attesting that the caveat is satisfied, and present
+it alongside. The discharge is cryptographically bound to the macaroon
+it discharges, and the target service verifies it without sharing a
+secret with the third party. It is therefore not correct to say that
+Macaroons cannot cross organizational boundaries, and we do not say so.
+
+The difference that matters for our setting is where the work happens.
+A third-party caveat costs a round trip: before presenting the macaroon,
+the holder must contact each named third party and collect a discharge,
+and the third party must be reachable at that moment. DelegationChain
+places the equivalent authority in signatures the verifier checks
+directly against registry-resolved public keys, with no discharge
+collection step on the request path.
 
 UCAN \citep{ucan-spec} extends capability attenuation to public-key
 settings using ECDSA or Ed25519 signatures and a JWT-like token format.
@@ -245,7 +277,8 @@ capabilities from this tradition. Our contribution is the combination of
 public-key verification (extending Macaroons' attenuation model across
 organizational boundaries), signature aggregation (improving over the
 per-hop linear growth of UCAN tokens), an explicit policy language with
-decidability guarantees, and a federated identity infrastructure.
+termination and containment guarantees, and a federated identity
+infrastructure.
 
 % ============================================================
 \section{Threat Model}
@@ -296,77 +329,109 @@ registry, or human approvers' devices; threats involving these
 compromises are addressed separately and explicitly.
 
 \subsection{Threats Within Scope}
+\label{sec:threat-scope}
+
+The threats in scope fall into six families; variants within a family
+share a mechanism of attack and, for the most part, a mechanism of
+defense. Threats are labelled for cross-reference in the security
+analysis (\cref{sec:security}).
+
+The families divide into two groups, and we keep them apart rather than
+presenting a single list. Five families (\cref{sec:threat-within-scope})
+the protocol is designed to \emph{prevent}. One
+(\cref{sec:threat-bounded}) it only \emph{bounds}: the attack remains
+possible and the protocol limits what it can achieve. Both are in scope,
+in the sense that the design is answerable for them, but a reader who
+took the second group for the first would credit the protocol with
+guarantees it does not provide.
+
+\subsubsection{Threats the protocol prevents}
 \label{sec:threat-within-scope}
 
-The protocol is designed to defend against the following threats. Threats
-are numbered for cross-reference in the security analysis
-(\cref{sec:security}).
+\paragraph{T1 --- Forgery of tokens and chains.}
 
-\threat{1}{Token forgery.} An adversary attempts to produce a valid
+\threat{1a}{Token forgery.} An adversary attempts to produce a valid
 authorization token without holding the corresponding signing key.
 
-\threat{2}{Parameter substitution.} An adversary, positioned between a
-signer and a verifier, attempts to alter parameter values in an
-authorized invocation (e.g., changing the destination of a transfer)
-while preserving the appearance of valid authorization.
-
-\threat{3}{Scope escalation.} An agent attempts to delegate more authority
-than it was itself granted.
-
-\threat{4}{Chain forgery and reordering.} An adversary attempts to
+\threat{1b}{Chain forgery and reordering.} An adversary attempts to
 construct an authorization chain that was not produced by the legitimate
 delegation sequence, including reordering hops, dropping hops, or
 inserting unauthorized hops.
 
-\threat{5}{Prompt injection within policy.} An adversary, controlling
+\paragraph{T2 --- Manipulation of authorized content.}
+
+\threat{2a}{Parameter substitution.} An adversary, positioned between a
+signer and a verifier, attempts to alter parameter values in an
+authorized invocation (e.g., changing the destination of a transfer)
+while preserving the appearance of valid authorization.
+
+\threat{2b}{Scope escalation.} An agent attempts to delegate more
+authority than it was itself granted.
+
+\paragraph{T3 --- Reuse of valid tokens.}
+
+\threat{3a}{Replay across sessions.} An adversary captures a valid
+authorization chain and attempts to use it after its intended validity
+window has expired.
+
+\threat{3b}{Replay within validity window.} An adversary captures a
+valid authorization chain and attempts to use it more than once within
+its validity window.
+
+\threat{3c}{Cross-context token reuse.} An adversary attempts to reuse a
+token issued in one context (e.g., for a delegation) as if it had been
+issued in another context (e.g., for an invocation).
+
+\paragraph{T4 --- Subversion of the approval path.}
+
+\threat{4a}{Compromised approval service.} An adversary obtains the
+signing key of an approval service and issues fraudulent approvals.
+
+\threat{4b}{Approval routing attack.} An agent routes approval requests
+to a permissive approval service when policy requires a stricter one.
+
+\threat{4c}{Approval reuse across invocations.} An adversary attempts to
+reuse a valid approval receipt with an invocation different from the one
+approved.
+
+\threat{4d}{Stale approval after parameter modification.} An adversary
+attempts to modify invocation parameters after approval has been
+obtained.
+
+\paragraph{T5 --- Attacks on the identity infrastructure.}
+
+\threat{5a}{Rogue-key registration.} An adversary attempts to register a
+public key for which it does not hold the secret key, in order to inject
+controlled keys into aggregate signatures.
+
+\threat{5b}{Compromised registry signing key.} An adversary obtains a
+registry's root signing key and issues fraudulent certificates.
+
+\threat{5c}{Revocation suppression.} An adversary suppresses revocation
+information from reaching verifiers, extending the window during which
+compromised credentials remain accepted.
+
+\threat{5d}{Certificate substitution.} An adversary substitutes a
+different certificate for the same identity during the registration or
+resolution process.
+
+\subsubsection{Threats the protocol bounds but does not prevent}
+\label{sec:threat-bounded}
+
+The protocol limits the damage the following attacks can do, but does
+not prevent them, and we do not claim that it does.
+\Cref{sec:security-threats} states what the bound is in each case.
+
+\paragraph{T6 --- Misuse of an agent within its own policy.}
+
+\threat{6a}{Prompt injection within policy.} An adversary, controlling
 content fed to an agent, induces the agent to take actions that are
 within the agent's permitted policy but contrary to the principal's
 intent.
 
-\threat{6}{Replay across sessions.} An adversary captures a valid
-authorization chain and attempts to use it after its intended validity
-window has expired.
-
-\threat{7}{Replay within validity window.} An adversary captures a valid
-authorization chain and attempts to use it more than once within its
-validity window.
-
-\threat{8}{Confused deputy in delegation.} An agent is induced to sign a
-delegation token favoring an adversary by manipulation of the inputs the
-agent uses to construct delegation decisions.
-
-\threat{9}{Cross-context token reuse.} An adversary attempts to reuse a
-token issued in one context (e.g., for a delegation) as if it had been
-issued in another context (e.g., for an invocation).
-
-\threat{10}{Compromised approval service.} An adversary obtains the
-signing key of an approval service and issues fraudulent approvals.
-
-\threat{11}{Approval routing attack.} An agent routes approval requests
-to a permissive approval service when policy requires a stricter one.
-
-\threat{12}{Approval reuse across invocations.} An adversary attempts to
-reuse a valid approval receipt with an invocation different from the one
-approved.
-
-\threat{13}{Stale approval after parameter modification.} An adversary
-attempts to modify invocation parameters after approval has been
-obtained.
-
-\threat{14}{Rogue-key registration.} An adversary attempts to register a
-public key for which it does not hold the secret key, in order to inject
-controlled keys into aggregate signatures.
-
-\threat{15}{Compromised registry signing key.} An adversary obtains a
-registry's root signing key and issues fraudulent certificates.
-
-\threat{16}{Revocation suppression.} An adversary suppresses revocation
-information from reaching verifiers, extending the window during which
-compromised credentials remain accepted.
-
-\threat{17}{Certificate substitution.} An adversary substitutes a
-different certificate for the same identity during the registration or
-resolution process.
+\threat{6b}{Confused deputy in delegation.} An agent is induced to sign
+a delegation token favoring an adversary by manipulation of the inputs
+the agent uses to construct delegation decisions.
 
 \subsection{Threats Outside Scope}
 \label{sec:threat-outside}
@@ -408,10 +473,14 @@ formally stated and argued in \cref{sec:security}:
     $k+1$ is a subset of the scope at hop $k$.
     \item[Non-repudiation.] Neither party to a verified action can
     plausibly deny it, assuming honest signing key management.
-    \item[Bounded revocation latency.] When a key compromise is reported
-    to the registry, the maximum window during which adversary-produced
-    tokens remain accepted is bounded by a configurable parameter
-    (default: 120 seconds).
+    \item[Bounded revocation propagation.] Once a registry has issued a
+    revocation assertion, the additional window before verifiers cease
+    accepting tokens under the affected certificate is bounded by a
+    configurable parameter (default: 120 seconds). Detection of the
+    compromise and its reporting to the registry precede this window and
+    are properties of the deploying organization's monitoring rather
+    than of the protocol. The protocol bounds propagation, not total
+    exposure.
 \end{description}
 
 % ============================================================
@@ -424,9 +493,10 @@ aggregate signatures across delegations, the encoding of parameter-bound
 authorization, the handling of approval receipts, and the verifier
 algorithm. We describe the design at a level of detail sufficient to
 support the security analysis of \cref{sec:security} and to motivate the
-implementation effort; a separate specification document (referenced in
-\cref{sec:discussion}) provides the bit-level details required for
-interoperable implementations.
+implementation effort. Bit-level details beyond those given here ---
+field numbering within each structure, and the exact byte layout of the
+wire format --- are not fixed by this paper and would be settled by a
+normative specification, which does not yet exist.
 
 \subsection{Participants and Tokens}
 \label{sec:protocol-participants}
@@ -455,7 +525,8 @@ token bodies plus a single aggregate signature in $\G{2}$.
 \subsection{Cryptographic Primitives}
 \label{sec:protocol-primitives}
 
-We use BLS12-381 with the minimal-pubkey-size variant: public keys are
+We use BLS12-381 \citep{ietf-pairing-curves} with the
+minimal-pubkey-size variant of \citet{ietf-bls-signature}: public keys are
 points in $\G{1}$ (48 bytes compressed), signatures are points in $\G{2}$
 (96 bytes compressed), and the pairing maps $\G{1} \times \G{2}$ to
 $\Gt$. Hash-to-curve uses RFC 9380 with suite
@@ -466,7 +537,9 @@ Signing key $\sk \in \Zq$, public key $\pk = \sk \cdot g_1 \in \G{1}$.
 For message $m \in \{0,1\}^*$, $\Sign(\sk, m) = \sk \cdot \HashG(m) \in
 \G{2}$. Verification checks $\pair{g_1}{\sigma} \overset{?}{=}
 \pair{\pk}{\HashG(m)}$. For signatures
-$\sigma_1, \ldots, \sigma_n$ from distinct signers on distinct messages,
+$\sigma_1, \ldots, \sigma_n$ on distinct messages --- which the chain
+digest construction of \cref{sec:protocol-digest} guarantees, and which
+does not require the signers to be distinct ---
 the aggregate $\sigma_{\text{agg}} = \sum_i \sigma_i \in \G{2}$ is
 verified by a multi-pairing check (\cref{sec:protocol-verification}).
 
@@ -480,7 +553,7 @@ attacks against the aggregate.
 The central cryptographic construction is a recursive digest chain
 binding each hop to all prior hops. We use domain separation tags to
 ensure tokens of different types cannot be confused (preventing
-cross-context reuse, threat T9). Tags are 8-byte ASCII strings with a
+cross-context reuse, \threatref{3c}). Tags are 8-byte ASCII strings with a
 null terminator: \texttt{TAG\_SES} for sessions, \texttt{TAG\_DEL} for
 delegations, \texttt{TAG\_INV} for invocations.
 
@@ -519,6 +592,65 @@ and action identifiers, the canonically encoded parameter values, a
 hash of the parameters (defense-in-depth against encoding bugs), an
 optional approval receipt, and timing and nonce fields.
 
+\Cref{fig:chain} shows the construction as a whole.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  >={Latex[length=1.8mm]},
+  body/.style={draw, rounded corners=2pt, fill=codebg, align=center,
+               inner sep=3pt, minimum height=6.5mm, text width=2.85cm},
+  dig/.style={draw, rounded corners=2pt, align=left,
+              inner sep=4pt, minimum height=6.5mm, text width=6.6cm},
+  sg/.style={align=center, text width=2.5cm},
+  agg/.style={draw, rounded corners=2pt, very thick, align=center,
+              inner sep=4pt, text width=6.6cm}
+]
+\node[body] (b0) at (0,0) {SessionBody};
+\node[dig]  (d0) at (4.9,0)
+  {$m_0 = H(\mathtt{TAG\_SES} \,\|\, \Canon(\text{SessionBody}))$};
+\node[sg]   (s0) at (10.2,0) {$\sigma_0 = \Sign(\sk_I, m_0)$};
+
+\node[body] (b1) at (0,-1.5) {DelegationBody$_1$};
+\node[dig]  (d1) at (4.9,-1.5)
+  {$m_1 = H(\mathtt{TAG\_DEL} \,\|\, m_0 \,\|\, \Canon(\text{DelBody}_1))$};
+\node[sg]   (s1) at (10.2,-1.5) {$\sigma_1 = \Sign(\sk_1, m_1)$};
+
+\node       (bd) at (0,-2.75) {$\vdots$};
+\node       (dd) at (4.9,-2.75) {$\vdots$};
+\node       (sd) at (10.2,-2.75) {$\vdots$};
+
+\node[body] (bn) at (0,-4.0) {InvocationBody};
+\node[dig]  (dn) at (4.9,-4.0)
+  {$m_N = H(\mathtt{TAG\_INV} \,\|\, m_{N-1} \,\|\, \Canon(\text{InvBody}))$};
+\node[sg]   (sn) at (10.2,-4.0) {$\sigma_N = \Sign(\sk_N, m_N)$};
+
+\node[agg]  (ag) at (4.9,-5.6)
+  {$\sigma_{\text{agg}} = \sigma_0 + \sigma_1 + \cdots + \sigma_N \in \G{2}$
+   \\[1pt] constant 96 bytes, independent of $N$};
+
+\foreach \i in {0,1,n} {
+  \draw[->] (b\i) -- (d\i);
+  \draw[->] (d\i) -- (s\i);
+}
+\draw[->, thick] (d0) -- node[right=1pt, font=\scriptsize] {commits to $m_0$} (d1);
+\draw[->, thick] (d1) -- (dd);
+\draw[->, thick] (dd) -- (dn);
+
+\draw[->] (s0.east) -- ++(0.5,0) |- (ag.east);
+\draw[->] (s1.east) -- ++(0.35,0) |- (ag.east);
+\draw[->] (sn.east) -- ++(0.2,0) |- (ag.east);
+\end{tikzpicture}
+\caption{The recursive chain digest. Each hop's message commits to its
+predecessor's, so the order of hops is fixed by the digests themselves;
+the domain separation tag fixes each token's kind. All hop signatures
+are summed into a single $\G{2}$ element. The verifier recomputes
+$m_0, \ldots, m_N$ from the received bodies, using the tag determined by
+each token's position, and checks the sum in one multi-pairing.}
+\label{fig:chain}
+\end{figure}
+
 \paragraph{Aggregate signature.}
 Each participant signs its corresponding message with its private key,
 producing $\sigma_k = \Sign(\sk_k, m_k)$ for $k = 0, 1, \ldots, N$. The
@@ -526,7 +658,12 @@ aggregate signature transmitted to the verifier is
 \begin{equation}
 \sigma_{\text{agg}} = \sigma_0 + \sigma_1 + \cdots + \sigma_N \in \G{2},
 \end{equation}
-which has constant size 96 bytes regardless of $N$.
+which has constant size 96 bytes regardless of $N$. The aggregate is
+accumulated along the chain: each participant receives the running
+aggregate from its predecessor, adds its own contribution, and forwards
+the sum. Individual $\sigma_k$ values are never transmitted on their
+own. \Cref{sec:security-assumptions} states this as an assumption,
+because \cref{thm:chain-integrity} relies on it.
 
 \paragraph{Role distinguishability by position.}
 The verifier reconstructs the $m_k$ values from received token bodies
@@ -555,7 +692,19 @@ unsigned and signed integers, byte strings, NFC-normalized text
 strings, booleans, null, and nested maps and arrays of the same. Float
 values and tagged values are disallowed in parameter encodings, to
 eliminate edge cases around floating-point comparison and the
-introduction of unexpected types.
+introduction of unexpected types. Parameter map \emph{keys} are
+text strings and are NFC-normalized on the same terms as text values.
+Without an explicit rule for keys, two implementations could
+canonically re-encode the same logical parameter map to different byte
+strings, and the re-encoding check of \cref{sec:protocol-encoding}
+would diverge between them.
+
+Parameter binding is a cryptographic property, not an authorization
+one. It guarantees that the values a verifier reads are the values the
+invoking agent signed; it says nothing about whether those values were
+permitted. Whether they were is decided by the policy evaluation of
+\cref{sec:policy-eval}, whose closed-world treatment of undeclared
+parameters is what turns binding into constraint.
 
 The InvocationBody also includes \texttt{params\_hash}, a SHA-256
 digest of the canonical parameter encoding. The verifier recomputes
@@ -592,16 +741,92 @@ acceptable cost.
 
 Policy can require approvals from multiple services (logical AND); the
 required service identifiers and public keys are part of the policy
-that the session token's \texttt{policy\_hash} commits to. An agent
-cannot route approval to a different (perhaps more permissive) service
-without invalidating the policy hash binding, defending against the
-approval routing attack (T11).
+that the session token's \texttt{policy\_hash} commits to. The policy
+hash is fixed at session start and does not vary with where the agent
+sends its approval request, so an agent that routes to a different
+(perhaps more permissive) service still presents the correct hash. What
+it cannot present is a receipt from a service the policy requires. The
+verifier, having loaded the policy that the hash commits to, knows which
+services are required and rejects a chain whose receipts do not cover
+them. This is the defense against the approval routing attack
+(\threatref{4b}).
 
 \subsection{Verification}
 \label{sec:protocol-verification}
 
 The verifier algorithm proceeds in phases, ordered to fail fast on
 cheap checks before performing expensive cryptographic operations.
+\Cref{alg:verify} states the procedure; the paragraphs that follow
+comment on individual phases. Every \textbf{reject} is terminal, and no
+state is mutated before the final step, so a chain that fails any check
+leaves the verifier exactly as it found it.
+
+\begin{algorithm}[!t]
+\caption{DelegationChain verification. Phases run cheapest-first; every
+\textbf{reject} is terminal.}
+\label{alg:verify}
+\begin{algorithmic}[1]
+\Procedure{Verify}{received chain $C$, current time $t$}
+  \LComment{Phase 1 --- structure and encoding}
+  \State $(B_0,\ldots,B_N,\sigma_{\text{agg}}) \gets \Call{Decode}{C}$;
+         \textbf{reject} if decoding fails
+  \State \textbf{reject} if $N < 1$
+  \ForAll{$B_k$}
+    \State \textbf{reject} if $\Canon(B_k) \neq$ received bytes of $B_k$
+           \Comment{non-canonical encoding}
+  \EndFor
+  \State \textbf{reject} if any token's kind disagrees with the tag its
+         position implies
+  \LComment{Phase 2 --- temporal}
+  \State \textbf{reject} if $t \notin [\,B_N.\text{nbf},\,
+         B_N.\text{exp}\,]$
+  \For{$k \gets 1$ \textbf{to} $N$}
+    \State \textbf{reject} if $B_k.\text{exp} > B_{k-1}.\text{exp}$
+           \Comment{expiry must not grow along the chain}
+  \EndFor
+  \LComment{Phase 3 --- replay}
+  \State \textbf{reject} if $(\pk_N, B_N.\text{nonce}) \in
+         \textit{NonceCache}$
+  \LComment{Phase 4 --- key chain consistency}
+  \For{$k \gets 1$ \textbf{to} $N$}
+    \State \textbf{reject} if $B_k.\text{delegator\_pk} \neq
+           B_{k-1}.\text{delegatee\_pk}$
+  \EndFor
+  \LComment{Phase 5 --- identity resolution}
+  \For{$k \gets 0$ \textbf{to} $N$}
+    \State $\mathit{cert}_k \gets \Call{Resolve}{B_k.\text{id}}$;
+           \textbf{reject} if unresolvable
+    \State \textbf{reject} if $\mathit{cert}_k$ is expired or revoked at
+           $t$, or binds a key other than $\pk_k$
+  \EndFor
+  \LComment{Phase 6 --- policy}
+  \State $S \gets \Call{LoadPolicy}{B_0.\text{policy\_hash}}$;
+         \textbf{reject} if unavailable
+  \For{$k \gets 1$ \textbf{to} $N-1$}
+    \State \textbf{reject} if $\Call{Contains}{B_{k-1}.\text{scope},
+           B_k.\text{scope}}$ is false
+  \EndFor
+  \State $d \gets \Call{Evaluate}{B_{N-1}.\text{scope},
+         B_N.\text{invocation}}$
+  \State \textbf{reject} if $d = \textsc{deny}$
+  \LComment{Phase 7 --- approvals}
+  \If{$d = \textsc{allow-with-approval}(\mathit{svcs})$}
+    \ForAll{$s \in \mathit{svcs}$}
+      \State \textbf{reject} unless some receipt in $B_N$ is signed by
+             $s$ over $\Call{InvocationDigest}{B_N}$
+    \EndFor
+  \EndIf
+  \LComment{Phase 8 --- aggregate signature}
+  \State recompute $m_0, \ldots, m_N$ from $B_0, \ldots, B_N$ using
+         position-determined tags
+  \State \textbf{reject} unless $\pair{g_1}{\sigma_{\text{agg}}} =
+         \prod_{k=0}^{N} \pair{\pk_k}{\HashG(m_k)}$
+  \LComment{Commit}
+  \State insert $(\pk_N, B_N.\text{nonce})$ into \textit{NonceCache}
+  \State \textbf{accept}
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
 
 \paragraph{Structural and temporal checks.}
 The verifier first decodes the received chain and confirms canonical
@@ -620,6 +845,16 @@ remaining validity window plus a clock-skew tolerance. The cache size
 is bounded by the product of maximum verification throughput and the
 maximum validity window.
 
+The cache must be a single logical structure. A deployment that places
+several verifier replicas behind a load balancer, each holding its own
+independent cache, does not provide replay protection at all: the same
+chain presented to two replicas is accepted twice, and an adversary who
+can influence load-balancer routing can replay at will. Replicated
+verifiers must therefore share a cache or partition it deterministically
+by invoker public key. This is a coordination dependency on the
+verification path, and \cref{thm:replay} is stated with it as an
+explicit hypothesis.
+
 \paragraph{Public key chain consistency.}
 The verifier checks that the public key fields across consecutive
 tokens agree: the session token's agent key equals the first delegation
@@ -633,7 +868,8 @@ scope at the prior hop, using the subset relation defined in
 \cref{sec:policy}. It also evaluates the invocation against the final
 scope, rejecting if the invocation falls outside the permitted scope.
 It checks that the session token's policy hash matches the policy the
-verifier has loaded.
+verifier has loaded, obtaining that policy by hash from the issuing
+registry if it is not already cached (\cref{sec:identity-resolution}).
 
 \paragraph{Approval verification.}
 If policy requires approvals, the verifier confirms that all required
@@ -667,13 +903,71 @@ introspection), but does not amount to truly asymptotic $O(1)$
 verification; the honest characterization is ``compact aggregate
 signatures with multi-pairing efficiency.''
 
+\Cref{fig:phases} shows why the order matters. The phases are arranged
+so that the checks a hostile chain is most likely to fail are also the
+cheapest to run: a malformed or expired chain is rejected on parsing and
+integer comparison, and only a chain that has survived every structural,
+temporal, and policy check reaches the pairing computation. An adversary
+who wishes to make a verifier do the expensive work must first construct
+a chain that is well-formed, unexpired, non-replayed, key-consistent,
+scope-monotone, and policy-compliant --- at which point the aggregate
+check is the only thing left to establish, and the work is warranted.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  >={Latex[length=1.8mm]},
+  ph/.style={draw, rounded corners=2pt, fill=codebg, align=left,
+             text width=6.9cm, inner sep=3.5pt, minimum height=5.5mm}
+]
+\foreach \i/\y/\txt in {
+  1/0.0/{1. Structure and canonical encoding},
+  2/-0.95/{2. Temporal window and expiry order},
+  3/-1.90/{3. Replay (nonce cache lookup)},
+  4/-2.85/{4. Public key chain consistency},
+  5/-3.80/{5. Identity resolution (may query registry)},
+  6/-4.75/{6. Scope containment and policy evaluation},
+  7/-5.70/{7. Approval receipts (one pairing each)},
+  8/-6.65/{8. Aggregate multi-pairing ($N{+}2$ pairings)}}
+{
+  \node[ph] (p\i) at (0,\y) {\txt};
+}
+\foreach \i in {1,...,7}{
+  \pgfmathtruncatemacro{\j}{\i+1}
+  \draw[->] (p\i.south) -- (p\j.north);
+}
+\foreach \i in {1,...,8}{
+  \draw[->, dashed] (p\i.east) -- ++(1.2,0);
+}
+\node[gray, font=\scriptsize, rotate=-90, anchor=south]
+  at (5.15,-3.32) {reject (terminal)};
+
+\draw[->, very thick, gray] (-4.15,0.2) -- (-4.15,-6.95);
+\node[gray, font=\scriptsize, rotate=90, anchor=south]
+  at (-4.4,-3.32) {increasing cost per check};
+\end{tikzpicture}
+\caption{Phase ordering in \cref{alg:verify}. Cheap checks run first, so
+that a chain which cannot succeed is discarded before the verifier
+performs any pairing. No verifier state is modified until the final
+phase has passed.}
+\label{fig:phases}
+\end{figure}
+
 \subsection{Encoding}
 \label{sec:protocol-encoding}
 
 All signed structures use deterministic CBOR encoding per RFC 8949
-§4.2.1, with the following additional rules. Map keys are integers
-rather than text strings, eliminating UTF-8 normalization
-considerations and reducing encoding size. Float and tagged values are
+§4.2.1, with the following additional rules. In \emph{protocol
+structures} --- session, delegation and invocation bodies,
+certificates, and approval receipts --- map keys are integers rather
+than text strings, eliminating UTF-8 normalization considerations and
+reducing encoding size. Parameter maps are the exception: they carry
+names chosen by the tool author rather than by this specification, and
+so use text-string keys sorted lexicographically by encoded form, per
+\cref{sec:protocol-params}. The scoping is deliberate, and an
+implementation that applies the integer-key rule to parameter maps will
+not interoperate with one that does not. Float and tagged values are
 disallowed in protocol structures except where explicitly required.
 Group elements are encoded using the standard ZCash-format compressed
 serialization defined for BLS12-381, and decoders perform subgroup
@@ -793,6 +1087,31 @@ hour). Cache invalidation is event-driven for revocation: observation
 of a revocation assertion immediately evicts the corresponding cached
 entry.
 
+\paragraph{Policy resolution.}
+The verifier must also hold the policy that a session token's
+\texttt{policy\_hash} commits to; \cref{sec:protocol-verification} reads
+it, \cref{sec:policy-subset} evaluates against it, and
+\cref{thm:approval-binding} depends on the verifier knowing which
+approval services it names. Since the policy is written by the sending
+organization and enforced by the receiving one, it has to get across the
+boundary somehow, and the protocol should not leave this unsaid.
+
+Registries host policy documents alongside certificates, retrievable by
+hash: a verifier holding \texttt{policy\_hash}~$h$ requests the document
+$h$ names, and accepts it only if $H(\Canon(\text{document})) = h$.
+Because resolution is content-addressed, the registry is not trusted
+for integrity --- it cannot substitute a different policy, only decline
+to serve one --- which is the same posture the rest of
+\cref{sec:identity} takes towards registries. Policies are immutable
+under their hash, so a document once fetched is cached for as long as
+the verifier keeps it; a policy change produces a new hash and, hence, a
+new session token rather than a silent change under an existing one.
+
+The honest consequence is that the first verification against an unseen
+policy requires a fetch. Verification is offline in the steady state
+and, on that first call, is not; \cref{sec:limitations} discusses what
+this costs the offline-verification claim.
+
 \subsection{Key Rotation}
 \label{sec:identity-rotation}
 
@@ -811,10 +1130,17 @@ same channel used for the original root. Compromised-root recovery
 requires out-of-band re-bootstrap of trust and cannot be handled by
 in-band rotation.
 
-When a hop's key rotates after that hop has signed but before the
-chain reaches the verifier, the verifier uses the public key that was
-valid at signing time, retrieved via a temporal resolution query that
-returns the certificate valid at a specified timestamp.
+Rotation interacts with chains that are in flight when a key changes.
+Under scheduled rotation the overlapping validity windows cover this
+case: a chain signed under the previous key continues to verify for the
+duration of the overlap, because the previous certificate is still
+valid. Under emergency rotation there is no overlap, and chains signed
+under the withdrawn key are rejected. The verifier always resolves the
+certificate valid at \emph{verification} time. It does not attempt to
+resolve the certificate that was valid when a token was signed, because
+its only evidence of signing time would be a field in the token body,
+signed by the very key whose compromise is at issue;
+\cref{sec:identity-revocation} develops this point.
 
 \subsection{Revocation}
 \label{sec:identity-revocation}
@@ -833,15 +1159,36 @@ interval 60 seconds), push notification, or transparency log
 monitoring; the choice is a deployment decision. The end-to-end window
 between key compromise and unforgeability is bounded by the sum of
 detection latency, reporting latency, assertion issuance,
-propagation, and residual cache time, of which the propagation and
+propagation, and residual cache time, of which only the propagation and
 cache terms are bounded by configuration (typically below 120
-seconds).
+seconds). Detection and reporting latency are unbounded by the
+protocol: they depend on the deploying organization's monitoring, and
+nothing in the design constrains them. The property claimed in
+\cref{sec:threat-properties} is accordingly bounded revocation
+\emph{propagation}, not bounded exposure.
 
-Revocation applies relative to \emph{signing time}, not verification
-time. A certificate revoked at time $t_r$ remains valid for chains
-whose tokens were signed before $t_r$. Without this rule, every
-revocation would retroactively invalidate all chains involving the
-revoked identity, which would be operationally untenable.
+Revocation applies relative to \emph{verification time}. A certificate
+revoked at time $t_r$ is not accepted by any verifier that has learned
+of the revocation, including for chains whose tokens were signed before
+$t_r$. The gentler alternative --- continuing to honor chains signed
+before $t_r$, so that revocation does not retroactively invalidate work
+already in progress --- is not available to us. A verifier's only
+evidence of signing time is a timestamp in the token body, and that
+timestamp is signed by the key whose compromise prompted the
+revocation. An adversary holding a stolen key, observing the
+revocation, can set the field to any earlier value and produce a chain
+that verifies against the pre-revocation certificate. A revocation rule
+resting on that field can be defeated by backdating, which would leave
+the mechanism without force.
+
+We therefore accept the operational cost. Chains in flight when a
+revocation is issued may fail verification and must be reconstructed
+under a rotated key. Two things bound the exposure: only chains
+outstanding within the propagation window are affected, and scheduled
+rotation (\cref{sec:identity-rotation}) avoids the situation entirely by
+overlapping the validity windows of the old and new certificates, so
+that routine key changes never invalidate work in flight. Emergency
+rotation, by construction, does.
 
 % ============================================================
 \section{Policy Expression Language}
@@ -856,9 +1203,10 @@ and which invocations a final agent may make.
 
 The design of the policy language is constrained by three requirements
 arising from its role in the protocol. First, the verifier must be able
-to decide, given two scope expressions $S_1$ and $S_2$ purportedly in a
-delegation relationship, whether $S_2 \subseteq S_1$ --- the scope
-monotonicity check of \cref{sec:protocol-verification}. Second,
+to check cheaply, given two scope expressions $S_1$ and $S_2$
+purportedly in a delegation relationship, whether $S_2 \subseteq S_1$ ---
+the scope monotonicity check of \cref{sec:protocol-verification} ---
+erring towards rejection where it cannot establish containment. Second,
 evaluation of an invocation against a scope must terminate in time
 bounded by the size of the scope expression and the invocation, with
 no possibility of unbounded computation. Third, scope expressions must
@@ -888,8 +1236,6 @@ params   ::= "params" "{" binding ("," binding)* "}"
 binding  ::= path ":" type
 where    ::= "where" expr
 expr     ::= expr "and" expr
-           | expr "or"  expr
-           | "not" expr
            | "(" expr ")"
            | atom
 atom     ::= path numop value
@@ -914,12 +1260,27 @@ invocations permitted by its rules; \texttt{deny all} permits nothing,
 and \texttt{allow all} is a reserved form used for top-level trusted
 contexts (e.g., the issuer's session-issuance authority).
 
-The condition language inside \texttt{where} clauses is propositional:
-boolean combinations of atomic predicates over parameter values. Each
-atomic predicate is one of four forms --- numeric comparison, string
-operator, list membership (\texttt{in}), or path-prefix containment
-(\texttt{under}). No predicate involves function calls, network
-operations, or unbounded iteration.
+The condition language inside \texttt{where} clauses is
+\emph{conjunctive}: a clause is a conjunction of atomic predicates over
+parameter values. Each atomic predicate is one of four forms --- numeric
+comparison, string operator, list membership (\texttt{in}), or
+path-prefix containment (\texttt{under}). No predicate involves function
+calls, network operations, or unbounded iteration.
+
+Disjunction and negation are deliberately absent from the expression
+language. Disjunction is recovered one level up: a scope is a union of
+rules, so a condition $a \lor b$ is written as two rules, and the
+expressive loss is close to nil. Negation is recovered only in part.
+Numeric comparisons have complements within the language --- the
+negation of $x > c$ is $x \le c$ --- but the string, membership, and
+path-prefix predicates do not, so a condition such as ``the path is
+\emph{not} under \texttt{/etc}'' cannot be written. We accept this.
+Authorization policies are more naturally written as enumerations of
+what is permitted than as exclusions of what is not, and the restriction
+is what buys the containment procedure of \cref{sec:policy-subset} its
+polynomial running time: implication between arbitrary propositional
+formulas is coNP-complete, and a verifier is not a good place to run a
+SAT solver on an input the sender chose.
 
 \subsection{Example}
 \label{sec:policy-example}
@@ -962,8 +1323,13 @@ $I = (\text{tool}, \text{action}, \text{params})$, the evaluator returns
     \begin{enumerate}
         \item If $r$'s tool and action do not match $I$, continue.
         \item Type-check $I.\text{params}$ against $r$'s
-              \texttt{params} declaration. If any parameter has the
-              wrong type or any declared parameter is missing, continue.
+              \texttt{params} declaration. The check is
+              \emph{closed-world}: the rule matches only if
+              $\mathrm{dom}(I.\text{params})$ is exactly the set of
+              parameter paths $r$ declares, and every value has its
+              declared type. If a declared parameter is missing, if any
+              parameter has the wrong type, or if the invocation carries
+              a parameter $r$ does not declare, continue.
         \item Resolve each path mentioned in $r$'s \texttt{where}
               clause against $I.\text{params}$. If any path resolves
               to absent, continue (treating the rule as inapplicable).
@@ -974,6 +1340,33 @@ $I = (\text{tool}, \text{action}, \text{params})$, the evaluator returns
     \end{enumerate}
     \item If no rule matched, return \textsc{deny}.
 \end{enumerate}
+
+\paragraph{The closed-world condition.}
+Step 1(b) is closed-world by design: an invocation carrying a parameter
+that the rule does not declare matches no rule, and is denied. The
+alternative --- checking declared parameters and ignoring the rest ---
+would leave undeclared parameters cryptographically bound but never
+authorized. Under \cref{sec:protocol-params} every supplied value sits
+inside $\Canon(P)$ and is therefore signed and non-repudiable, but
+binding is not constraint. A rule declaring \texttt{amount} and
+\texttt{to\_account} says nothing about a third parameter
+\texttt{override\_limits}, and a verifier that accepted an invocation
+carrying it would be honoring an authorization the policy never
+granted. Closing the world is what makes a parameter declaration a
+constraint rather than a schema hint.
+
+\paragraph{Match order.}
+Rules are tried in declaration order and the first match wins, so a
+broad early rule silently suppresses the approval requirement of a
+narrower rule later in the scope. In the policy of
+\cref{sec:policy-example} a 500-unit transfer to
+\texttt{acct\_vendor\_a} matches rule 1 and returns \textsc{allow}
+without ever reaching rule 2's finance approval. This is a
+policy-authoring hazard rather than a protocol defect --- the outcome is
+exactly what the written policy says --- but it is easy to introduce by
+accident, and authors should order rules from most restrictive to least,
+or scope early rules narrowly enough that they cannot shadow a later
+approval requirement.
 
 The evaluator is deterministic, has no side effects, and contains no
 loops over data of unbounded size: the outer loop iterates over rules
@@ -1002,8 +1395,10 @@ work is bounded by the product, yielding the claimed bound.
 
 The verifier of \cref{sec:protocol-verification} must check that the
 sub-scope at each delegation hop is a subset of its parent's scope.
-This is a syntactic check over scope expressions, not a runtime check
-over invocations.
+This is a check over scope expressions, performed once per hop at
+verification time, and not a runtime check over invocations. We define
+the relation semantically and then give a syntactic procedure that
+soundly under-approximates it.
 
 \begin{definition}[Subset relation]
 \label{def:subset}
@@ -1012,53 +1407,131 @@ invocation $I$ that the evaluator accepts under $S_2$ is also accepted
 under $S_1$, with at least as restrictive an approval requirement.
 \end{definition}
 
-The subset relation is decided by the following algorithm:
+Containment is checked --- conservatively, as \cref{prop:decidability}
+and \cref{rem:incompleteness} make precise --- by the following
+procedure:
 
 \begin{enumerate}
     \item If $S_1$ is \texttt{allow all}, return true.
     \item If $S_2$ is \texttt{deny all} or has no rules, return true.
-    \item For each rule $r_2$ in $S_2$, attempt to find a rule $r_1$
-          in $S_1$ such that $r_2 \subseteq r_1$ as rules. If no such
-          $r_1$ exists for some $r_2$, return false.
+    \item For each rule $r_2$ in $S_2$:
+    \begin{enumerate}
+        \item Attempt to find a rule $r_1$ in $S_1$ such that
+              $r_2 \subseteq r_1$ as rules. If no such $r_1$ exists,
+              return false.
+        \item For every rule $r'$ of $S_1$ that agrees with $r_2$ on
+              tool, action, and parameter declaration and whose
+              \texttt{where} clause is jointly satisfiable with $r_2$'s,
+              check that $r'$'s approval requirement is no stronger
+              than $r_2$'s. If some $r'$ fails this check, return false.
+    \end{enumerate}
     \item Otherwise, return true.
 \end{enumerate}
 
+Step 3(b) is needed because rules are matched in declaration order
+(\cref{sec:policy-eval}). An invocation accepted under $S_2$ is
+evaluated under $S_1$ against the \emph{first} rule of $S_1$ that
+matches it, which need not be the subsuming rule $r_1$ that step 3(a)
+found. Without the additional check a child scope could quietly drop an
+approval requirement imposed by an earlier parent rule --- exactly the
+escalation \cref{def:subset} is meant to exclude --- and the procedure
+would not notice. Checking all candidate rules rather than only those
+preceding $r_1$ is conservative, which is the direction of error we
+want.
+
 Rule subsumption ($r_2 \subseteq r_1$) requires: the tools and actions
-match; $r_1$'s parameter type declaration is compatible with $r_2$'s;
-$r_1$'s approval requirement is no stronger than $r_2$'s (so that any
-approvals satisfying $r_2$ also satisfy $r_1$); and $r_2$'s
-\texttt{where} clause implies $r_1$'s.
+match; $r_1$ and $r_2$ declare the \emph{same} set of parameter paths
+with the same types; $r_1$'s approval requirement is no stronger than
+$r_2$'s (so that any approvals satisfying $r_2$ also satisfy $r_1$);
+and $r_2$'s \texttt{where} clause implies $r_1$'s.
 
-The remaining sub-problem is deciding implication between propositional
-formulas over the four atomic predicate forms. The atoms have a
-restricted structure: numeric comparisons are over a fixed integer
-variable and constants, string operators are over fixed string
-variables and constant patterns, list membership is over fixed lists,
-and path-prefix containment is over fixed prefixes. Implication
-between such atoms is decidable in polynomial time by analyzing the
-range or pattern relations on the underlying values. Implication
-between propositional combinations is decidable by reduction to SAT
-over the atomic predicates; since the predicates over distinct paths
-are independent and predicates over the same path admit closed-form
-implication checks, in practice the decision procedure runs in time
-polynomial in the size of the scope expressions for the policies we
-expect in real deployments.
+The identity condition on parameter declarations follows from the
+closed-world rule of \cref{sec:policy-eval}. Because a rule matches only
+invocations whose parameter set is exactly what it declares, two rules
+declaring different parameter sets accept disjoint sets of invocations:
+declaring fewer parameters is strictly more restrictive rather than more
+permissive, and no containment holds in either direction. Requiring
+identical declarations is therefore the only sound relation available
+without further machinery, such as an explicit notion of optional
+parameters that the language does not currently have.
 
-\begin{proposition}[Decidability of subset]
+The remaining sub-problem is deciding implication between \texttt{where}
+clauses. Because a clause is a conjunction of atoms
+(\cref{sec:policy-grammar}), this reduces to a check over atoms rather
+than to satisfiability. The atoms have a restricted structure: numeric
+comparisons are over a fixed integer path and constants, string
+operators are over fixed string paths and constant patterns, list
+membership is over fixed lists, and path-prefix containment is over
+fixed prefixes. Atoms over distinct paths are independent, so a
+conjunction $C_2 = \bigwedge_j a_j$ implies a conjunction
+$C_1 = \bigwedge_i b_i$ exactly when, for each $b_i$, those atoms of
+$C_2$ over the same path as $b_i$ jointly imply $b_i$. For each of the
+four atom forms this is a closed-form check on the constraint the atoms
+induce on that path: an interval for numeric comparisons, a set of
+admissible values for membership, and a prefix or substring relation for
+the string and path operators. Joint satisfiability, needed by step
+3(b), is the same analysis: a conjunction is unsatisfiable exactly when
+the constraints induced on some path are inconsistent. No search over
+truth assignments is required at any point.
+
+\begin{proposition}[Soundness and cost of the containment procedure]
 \label{prop:decidability}
-The relation $S_2 \subseteq S_1$ is decidable, with the procedure
-running in time polynomial in $|S_1| + |S_2|$ for policies satisfying
-mild structural conditions (no predicates that simultaneously constrain
-the same path with both numeric and string operators in conflicting
-ways).
+The procedure above terminates in time polynomial in $|S_1| + |S_2|$,
+and whenever it returns true, $S_2 \subseteq S_1$ in the sense of
+\cref{def:subset}.
 \end{proposition}
 
 \begin{proof}[Proof sketch]
-The decision procedure described above performs a finite enumeration
-over rule pairs, with each rule-pair check reducing to propositional
-implication over decidable atomic predicates. Total work is bounded
-polynomially in the input size.
+\emph{Cost.} The procedure enumerates pairs
+$(r_2, r_1) \in S_2 \times S_1$, of which there are at most
+$|S_1| \cdot |S_2|$. Each pair check compares two identifiers, compares
+two parameter declarations for equality, compares two approval
+requirements, and decides implication between two conjunctions of
+atoms. The last of these groups the atoms of each clause by path and,
+for each atom of $r_1$'s clause, evaluates a closed-form implication
+against the constraint that $r_2$'s atoms induce on the same path; the
+number of such checks is bounded by the product of the two atom counts,
+and each is constant-time in the atom's operands. Step 3(b) performs a
+satisfiability check of the same form over the same pairs. The total is
+polynomial in $|S_1| + |S_2|$.
+
+\emph{Soundness.} Suppose the procedure returns true, and let $I$ be an
+invocation the evaluator accepts under $S_2$. Acceptance means some rule
+$r_2 \in S_2$ matched $I$. Step 3(a) exhibited an $r_1 \in S_1$ with
+$r_2 \subseteq r_1$. Then $r_1$ matches $I$ as well: the tool and action
+agree, so step 1(a) of \cref{sec:policy-eval} passes; the parameter
+declarations are identical, so the closed-world check of step 1(b)
+passes; every path $r_1$'s clause mentions is declared and therefore
+present, so step 1(c) passes; and $r_2$'s clause holds of $I$ and
+implies $r_1$'s, so step 1(d) passes. Hence $I$ is accepted under $S_1$.
+For the approval component, the rule that actually decides $I$ under
+$S_1$ is the first rule of $S_1$ matching $I$; any such rule agrees with
+$r_2$ on tool, action, and parameter declaration, and its clause is
+satisfied by $I$ jointly with $r_2$'s, so it was examined by step 3(b)
+and its approval requirement is no stronger than $r_2$'s. Thus $I$ is
+accepted under $S_1$ with an approval requirement no stronger than the
+one $S_2$ imposes, which is \cref{def:subset}.
 \end{proof}
+
+\begin{remark}[Incompleteness]
+\label{rem:incompleteness}
+The procedure is sound but not complete. Step 3(a) requires each rule of
+$S_2$ to be subsumed by a \emph{single} rule of $S_1$, so a child rule
+covered only by the union of several parent rules is rejected. Take
+$S_1$ to be the two rules
+\texttt{allow tool=t action=a params \{x: int\} where x <= 10} and
+\texttt{allow tool=t action=a params \{x: int\} where x > 10}, and $S_2$
+the single rule \texttt{allow tool=t action=a params \{x: int\}}. Every
+invocation accepted under $S_2$ is accepted under $S_1$, so
+$S_2 \subseteq S_1$ holds semantically; but neither rule of $S_1$
+subsumes $S_2$'s rule on its own, and the procedure returns false. The
+incompleteness is conservative --- the procedure rejects some legitimate
+delegations and accepts no illegitimate ones --- and we prefer that
+direction of error. Deciding \cref{def:subset} exactly would require
+reasoning about unions of rules, which the per-rule structure of the
+procedure does not support; we leave it open whether the exact relation
+admits an efficient decision procedure for this language.
+\end{remark}
 
 \subsection{Limitations of the Policy Language}
 \label{sec:policy-limitations}
@@ -1081,6 +1554,19 @@ introduce latency and additional trust dependencies). Where stateful
 authorization is required, we anticipate it being handled at the tool
 implementation layer, after the protocol's stateless authorization
 check has succeeded.
+
+The closed-world condition of \cref{sec:policy-eval} carries an
+operational cost of its own. Adding an optional parameter to a tool is
+not a backward-compatible change: every rule governing that tool must be
+updated to declare the new parameter before any invocation may supply
+it, and until the updated policy has propagated, invocations carrying
+the new parameter are denied. Because policies are committed to by hash
+in session tokens, that update is a policy version change rather than an
+edit in place, and it has to be coordinated with the partners whose
+verifiers load the policy. We consider this the right default, since the
+failure mode is denial rather than unauthorized acceptance, but
+deployments whose tool schemas change often should expect policy churn
+in proportion.
 
 These limitations are deliberate. A more expressive language would
 provide more flexibility but at the cost of guarantees we consider
@@ -1106,8 +1592,9 @@ ProVerif. We discuss the planned formalization in
 The security arguments below rest on the following assumptions:
 
 \begin{description}
-    \item[\textbf{BLS unforgeability.}] The BLS signature scheme on
-    BLS12-381 \citep{boneh2001bls,ietf-bls-signature} is
+    \item[\textbf{BLS unforgeability.}] The BLS signature scheme
+    \citep{boneh2001bls,ietf-bls-signature}, instantiated on BLS12-381
+    \citep{ietf-pairing-curves}, is
     existentially unforgeable under chosen-message attack, under the
     co-computational Diffie-Hellman assumption on the curve and in the
     random oracle model for $\HashG$.
@@ -1115,9 +1602,18 @@ The security arguments below rest on the following assumptions:
     on all registered public keys, aggregate signatures are
     existentially unforgeable: no PPT adversary can produce a tuple
     $(\pk_1, \ldots, \pk_n, m_1, \ldots, m_n, \sigma_{\text{agg}})$
-    such that the multi-pairing check accepts, unless the adversary
-    has obtained valid individual signatures on each $m_i$ from the
-    holder of $\sk_i$ \citep{boneh2018compact}.
+    with the $m_i$ pairwise distinct --- which
+    \cref{sec:protocol-digest} guarantees, and which places no
+    requirement on the $\pk_i$ being distinct --- such that the
+    multi-pairing check accepts, unless the adversary has obtained
+    valid individual signatures on each $m_i$ from the holder of
+    $\sk_i$ \citep{boneh2018compact}.
+    \item[\textbf{Aggregate-only disclosure.}] Individual hop
+    signatures $\sigma_k$ are not disclosed outside the aggregate. Each
+    participant forwards only the running aggregate
+    (\cref{sec:protocol-digest}); no protocol message carries a bare
+    $\sigma_k$. The truncation argument of
+    \cref{thm:chain-integrity} depends on this.
     \item[\textbf{Collision resistance of SHA-256.}] SHA-256 is
     collision-resistant in the standard sense.
     \item[\textbf{Honest signing key custody.}] Signing keys remain in
@@ -1181,8 +1677,17 @@ probability.
 Modification of any body changes its canonical encoding, changing the
 corresponding $m_k$ (since $m_k$ hashes the body). Reordering changes
 the sequence of $m_k$ values (since $m_k$ commits to $m_{k-1}$).
-Truncation removes a contribution from the aggregate, which then fails
-the multi-pairing check against the original set of public keys.
+Truncation is resisted by a different argument. The verifier
+reconstructs its set of public keys and messages from the bodies it
+actually receives, so a truncated chain is checked against the
+truncated set rather than the original one; the adversary's task is
+therefore to supply an aggregate matching the shortened set. Removing
+hop $k$ requires exhibiting $\sigma_{\text{agg}} - \sigma_k$, which
+requires $\sigma_k$. By the aggregate-only disclosure assumption,
+$\sigma_k$ is never transmitted individually --- only folded into the
+running aggregate --- so an adversary that does not hold $\sk_k$ must
+produce it some other way, contradicting BLS unforgeability under
+$\pk_k$.
 Extension requires producing a new $\sigma$ for the extension hop;
 under BLS aggregate security and proof-of-possession, this requires
 the secret key of the extending party. The position-determined tag
@@ -1201,19 +1706,25 @@ subset of the scope at hop $k$, in the sense of
 \begin{proof}[Proof sketch]
 The verifier checks $\text{sub\_scope}_{k+1} \subseteq
 \text{scope}_k$ explicitly (\cref{sec:protocol-verification}) using
-the decision procedure of \cref{sec:policy-subset}. Acceptance of the
-chain implies this check passed. The decidability of the subset
-relation (\cref{prop:decidability}) makes the check well-defined.
+the containment procedure of \cref{sec:policy-subset}. Acceptance of the
+chain implies that procedure returned true, and by the soundness half of
+\cref{prop:decidability} that implies containment in the sense of
+\cref{def:subset}. The converse does not hold: by
+\cref{rem:incompleteness} the verifier will also reject some chains
+whose scopes are genuinely nested, so the guarantee is that accepted
+chains are monotone, not that all monotone chains are accepted.
 The integrity of the body content from which sub-scopes are read is
 guaranteed by \cref{thm:chain-integrity}.
 \end{proof}
 
 \begin{theorem}[Replay resistance]
 \label{thm:replay}
-A verifier that maintains a correctly-sized nonce cache and rejects
-chains whose nonce-and-invoker-key pair is already in the cache will
-reject all replays within the validity window, and will reject all
-chains presented after the validity window has expired.
+A \emph{single logical verifier} maintaining a consistent,
+correctly-sized nonce cache --- one cache shared across all instances
+that accept chains, rather than an independent cache per replica ---
+and rejecting chains whose nonce-and-invoker-key pair is already in
+that cache will reject all replays within the validity window, and will
+reject all chains presented after the validity window has expired.
 \end{theorem}
 
 \begin{proof}[Proof sketch]
@@ -1239,46 +1750,60 @@ The approval body signed by the approval service includes
 approval reference itself. Modification of the invocation changes
 this digest, invalidating the receipt under BLS unforgeability. The
 required approval service identifiers are committed to by the policy
-hash referenced in the session token, which the chain cannot
-forge; routing to a different service produces a chain whose policy
-hash does not match the verifier's loaded policy, and is rejected.
+hash referenced in the session token, which the chain cannot forge.
+The verifier has loaded the policy that this hash commits to, and so
+knows which services an invocation requires. Routing the approval
+elsewhere does not disturb the policy hash --- it is fixed at session
+start and does not vary with the agent's routing choice --- so a
+misrouted chain arrives carrying the correct hash and the wrong
+receipt. The verifier rejects it because no receipt signed by a
+required service is present.
 \end{proof}
 
 \subsection{Threats Addressed}
 \label{sec:security-threats}
 
-The seventeen threats of \cref{sec:threat-model} are addressed by the
-above theorems and the identity infrastructure of
-\cref{sec:identity}, as follows. Token forgery (T1) is addressed by
-\cref{thm:unforgeability}. Parameter substitution (T2) is addressed by
-\cref{thm:parameter-binding}. Scope escalation (T3) and chain forgery
-(T4) are addressed by Theorems \ref{thm:chain-integrity} and
-\ref{thm:scope-monotonicity}. Cross-session replay (T6) and intra-window
-replay (T7) are addressed by \cref{thm:replay}. Cross-context token
-reuse (T9) is addressed by domain separation tags
-(\cref{sec:protocol-digest}). Approval-related threats (T10--T13) are
-addressed by \cref{thm:approval-binding} and the policy-hash binding.
-Identity threats (T14--T17) are addressed by proof-of-possession
+The five prevented threat families of \cref{sec:threat-within-scope} are
+addressed by the above theorems and the identity infrastructure of
+\cref{sec:identity}, as follows. Token forgery (\threatref{1a}) is
+addressed by \cref{thm:unforgeability}, and chain forgery
+(\threatref{1b}) by \cref{thm:chain-integrity}. Parameter substitution
+(\threatref{2a}) is addressed by \cref{thm:parameter-binding}, and scope
+escalation (\threatref{2b}) by Theorems \ref{thm:chain-integrity} and
+\ref{thm:scope-monotonicity} together. Cross-session replay
+(\threatref{3a}) and intra-window replay (\threatref{3b}) are addressed
+by \cref{thm:replay}, under the single-logical-verifier hypothesis
+stated there; cross-context token reuse (\threatref{3c}) is addressed by
+domain separation tags (\cref{sec:protocol-digest}). The approval family
+(\threatref{4a}--\threatref{4d}) is addressed by
+\cref{thm:approval-binding} and the policy-hash binding, with the
+qualification that a compromised approval service (\threatref{4a}) is
+bounded rather than prevented once the key is in adversary hands:
+\cref{sec:protocol-approvals} decouples approval verification from the
+aggregate precisely so that such a compromise cannot extend to chain
+forgery, and detection is left to transparency log monitoring and
+rotation. The identity family
+(\threatref{5a}--\threatref{5d}) is addressed by proof-of-possession
 (\cref{sec:identity-pop}), short-lived certificates and revocation
 (\cref{sec:identity-revocation}), and optional transparency log
 integration.
 
-Prompt injection within policy (T5) and confused-deputy delegation (T8)
-require separate discussion. \emph{Within-policy prompt injection} ---
-an adversary inducing an agent to take an action that is within its
-permitted policy but contrary to the principal's intent --- is not
-prevented by the protocol. The protocol's contribution to defending
-against this threat is to \emph{bound its blast radius}: the adversary
-can cause only invocations that policy already permits and, where
-policy requires human approval, will surface the action to an approver
-who has an opportunity to refuse. Tightly-scoped policies and
-appropriately-required approvals reduce the blast radius; defending
-against prompt injection itself remains an active research area
-outside the protocol's purview. \emph{Confused-deputy delegation},
-where an agent is induced to delegate authority to an adversary, is
-similarly bounded rather than prevented: the agent cannot delegate
-more authority than it itself holds (\cref{thm:scope-monotonicity}),
-limiting damage to the agent's own permitted scope.
+The sixth family (\cref{sec:threat-bounded}) is bounded, not prevented.
+\emph{Within-policy prompt injection} (\threatref{6a}) --- an adversary
+inducing an agent to take an action that is within its permitted policy
+but contrary to the principal's intent --- is not prevented by the
+protocol. The protocol's contribution is to \emph{bound the blast
+radius}: the adversary can cause only invocations that policy already
+permits and, where policy requires human approval, will surface the
+action to an approver who has an opportunity to refuse. Tightly-scoped
+policies and appropriately-required approvals reduce the blast radius;
+defending against prompt injection itself remains an active research
+area outside the protocol's purview. \emph{Confused-deputy delegation}
+(\threatref{6b}), where an agent is induced to delegate authority to an
+adversary, is similarly bounded rather than prevented: the agent cannot
+delegate more authority than it itself holds
+(\cref{thm:scope-monotonicity}), limiting damage to the agent's own
+permitted scope.
 
 \subsection{Limitations of the Analysis}
 \label{sec:security-limitations-analysis}
@@ -1293,10 +1818,11 @@ integrity guarantee against rogue-key attacks. \Cref{thm:replay}
 depends on operational properties of the nonce cache (correct sizing,
 crash recovery, distributed consistency across verifier replicas)
 that are not enforced by the protocol but must be discharged by the
-verifier implementation. The subset relation algorithm of
-\cref{sec:policy-subset} runs in polynomial time under mild
-structural conditions on policy expressions; adversarially-crafted
-policies could exercise corner cases requiring closer analysis.
+verifier implementation. The containment procedure of
+\cref{sec:policy-subset} is sound but not complete with respect to
+\cref{def:subset} (\cref{rem:incompleteness}); its soundness has been
+argued informally here and would repay mechanization, since it is the
+step on which \cref{thm:scope-monotonicity} rests.
 Symbolic verification of the protocol in Tamarin or ProVerif would
 confirm or refute these arguments and is planned future work.
 
@@ -1327,15 +1853,28 @@ carries ``caveats,'' predicates that restrict its use; each delegation
 appends additional caveats, and verification recomputes the HMAC chain
 using a shared secret known to the verifier. Macaroons demonstrated
 that attenuated delegation could be made cryptographic and efficient.
-DelegationChain extends this model in three principal directions: from
-shared-secret HMAC to public-key BLS signatures (enabling
-cross-organizational verification without shared secrets); from
-per-hop linear signature growth to compact aggregate signatures via
-BLS aggregation; and from informal caveat languages to a typed
-declarative policy language with decidability guarantees. Where
-Macaroons assumes a single trust domain sharing HMAC keys, our work
-targets the cross-organizational setting where mutual distrust is the
-norm.
+Macaroons also provide \emph{third-party caveats}, in which a caveat
+names a principal other than the target service and is satisfied by a
+discharge macaroon obtained from that principal
+(\cref{sec:bg-capabilities}). This is the mechanism by which Macaroons
+reach across trust boundaries, and any comparison that treats Macaroons
+as a single-domain-only design is inaccurate. DelegationChain extends
+the model in three principal directions: from shared-secret HMAC to
+public-key BLS signatures; from per-hop linear signature growth to
+compact aggregate signatures via BLS aggregation; and from informal
+caveat languages to a typed declarative policy language with termination
+and containment guarantees.
+
+The substantive difference from third-party caveats is the shape of the
+verification path rather than its reach. Discharging a third-party
+caveat requires the holder to contact the named principal and collect a
+discharge macaroon before presenting the token; the third party must be
+available at that moment, and each additional third party adds a round
+trip. DelegationChain moves that authority into signatures that the
+verifier checks locally against registry-resolved public keys, so the
+request path carries no discharge-collection step. The cost of this
+choice is the identity infrastructure of \cref{sec:identity}, which
+Macaroons does not require.
 
 UCAN \citep{ucan-spec} also extends capability delegation to a
 public-key setting, originally for Web3 contexts. UCAN uses ECDSA or
@@ -1343,35 +1882,138 @@ Ed25519 signatures and a JWT-like token format, with delegation
 attenuation expressed through scoped capability tokens. Our work
 differs from UCAN in several respects: we use BLS signatures
 specifically for their aggregation property, which UCAN does not
-provide; we specify a typed policy language with formal decidability
-of subset, where UCAN's capability expressions are less rigorously
-defined; we target MCP rather than Web3 transport; and we include a
+provide; we specify a typed policy language with a formally
+characterized scope containment check, where UCAN's capability
+expressions are less rigorously defined; we target MCP rather than Web3 transport; and we include a
 federated identity infrastructure with proof-of-possession and
 revocation semantics adapted to the short-lived-credential model.
+
+\paragraph{Authorization certificates and delegation chains.}
+The problem of composing delegation chains and computing the authority
+that survives composition is older than this literature. SPKI/SDSI
+\citep{rfc2693} defines authorization certificates in which the
+principal is a public key rather than a name, and specifies a
+\emph{5-tuple reduction} algorithm that composes a chain of delegation
+certificates into a single effective authorization by intersecting the
+authorization tags at each step, subject to a delegation bit controlling
+whether further delegation is permitted. Reduction is the direct
+ancestor of the scope-monotonicity check of \cref{sec:policy-subset},
+and the correspondence is close: SPKI intersects tags where we require
+containment between scope expressions. The differences are that SPKI
+computes the intersection, producing the resulting authority, where our
+verifier only checks a containment relation that the delegator has
+already asserted; that SPKI's tag \emph{*-forms} (prefix, range, set)
+are a fixed and deliberately small constraint vocabulary, where our
+policy language is typed and admits conditions over named parameter
+paths; and that SPKI has no notion of signature aggregation.
+
+X.509 proxy certificates \citep{rfc3820} apply the same idea within Web
+PKI and were deployed at scale in grid computing. An end-entity
+certificate signs a short-lived proxy certificate, which may itself sign
+another, producing a delegation chain that a relying party validates as
+an ordinary X.509 path; attenuation is expressed through an embedded
+\texttt{ProxyCertInfo} policy field. This is the closest classical prior
+art to the certificate-chain-plus-policy design of \cref{sec:identity}.
+Two differences are worth naming. RFC 3820 leaves the content of the
+policy field opaque --- it names a policy language by OID and carries
+its bytes, without specifying one --- so nothing in the standard
+provides the decidable containment check our \cref{sec:policy} is built
+around. And proxy certificate chains root in a CA hierarchy, where our
+registry model is federated and explicitly declines a global trust
+anchor (\cref{sec:identity-federated}).
+
+Biscuit \citep{biscuit-spec} is the closest contemporary system in the
+capability-token line. Biscuit tokens are public-key verifiable, support
+offline attenuation --- a holder may append a block of additional checks
+at any time, restricting the token without contacting the issuer, and
+cannot remove a block without invalidating the signature --- and carry
+an authorization language based on a purpose-built Datalog with
+specified evaluation semantics. Biscuit's Datalog is more expressive
+than our policy language, and its formal treatment of evaluation is more
+developed than the sketch we give. The differences run the other way on
+two axes: Biscuit signs each block individually with Ed25519 or ECDSA
+and does not aggregate, so token size grows with attenuation depth; and
+Biscuit does not bind a token to a specific invocation's parameter
+values, since attenuation constrains future use rather than committing
+to one call. We regard Biscuit's Datalog as the more serious policy
+design and note that a containment check over it would be a
+substantially harder problem than the one \cref{prop:decidability}
+addresses.
+
+ZCAP-LD \citep{zcapld}, developed in the W3C Credentials Community
+Group, expresses object capabilities as linked-data documents with
+invocation and delegation proofs, and shares the attenuated-delegation
+model. It remains a community-group draft rather than a standard, and
+its caveat vocabulary is extensible rather than fixed, which places it
+outside the decidability constraints of \cref{sec:policy}.
+
+\paragraph{Proof-carrying authorization.}
+A separate tradition places the burden of justifying access on the
+requester. \citet{appel1999pca} introduced proof-carrying
+authentication, in which a request arrives accompanied by a proof, in a
+higher-order logic, that it is authorized; the verifier need only check
+the proof, and the framework is expressive enough to encode Taos, SPKI,
+SDSI and X.509. \citet{bauer2003pca} developed the approach into a
+deployed system for web access control. The comparison is instructive
+because the trust structure is the same as ours --- the verifier checks
+locally, without consulting the issuer --- while the mechanism is the
+opposite: proof-carrying authorization gains expressiveness by admitting
+an arbitrary logic and pushing proof search to the requester, where we
+give up expressiveness (\cref{sec:policy-limitations}) to keep the
+verifier's work bounded by a syntactic check. A DelegationChain chain
+can be read as a very restricted proof, in which the only inference
+rules are signature verification and scope containment.
 
 \paragraph{Cryptographic infrastructure.}
 The BLS signature scheme is due to \citet{boneh2001bls}. Aggregate
 signature security under proof-of-possession is analyzed by
 \citet{boneh2018compact}, whose work motivates our PoP requirement
-during registration. We use the IETF-standardized BLS12-381
-curve and signing variant \citep{ietf-bls-signature} and the
-hash-to-curve construction of \citep{rfc9380}. Our chain digest
-construction is, to our knowledge, novel: while recursive hash chains
-are a standard cryptographic primitive, their composition with BLS
-aggregation to provide simultaneous chain integrity and bandwidth
-compactness for delegation chains has not previously been specified.
-Certificate Transparency \citep{rfc9162} provided the model for our
-optional transparency log integration.
+during registration. We use the signing variant standardized by the
+CFRG \citep{ietf-bls-signature}, the BLS12-381 curve parameters of
+\citet{ietf-pairing-curves}, and the hash-to-curve construction of
+RFC 9380 \citep{rfc9380}.
+
+The problem our chain digest solves --- producing a single compact
+signature over an \emph{ordered} sequence of signers on distinct
+messages, such that the order is itself authenticated --- is the problem
+that \emph{sequential aggregate signatures} were introduced to solve.
+\citet{lmrs2004seqagg} gave the first construction, in which each signer
+folds its signature into the aggregate it receives from its predecessor,
+using certified trapdoor permutations; the order of signing is bound by
+the construction itself. \citet{boldyreva2007ordered} extended the line
+to ordered multisignatures and identity-based sequential aggregates in
+the pairing setting. We should therefore be precise about what is and is
+not new here. Ordered, aggregated signature chains are not new, and we
+do not claim them.
+
+What we do claim is narrower: a specification of how to obtain order
+binding for delegation chains using a recursive hash chain over
+domain-separated token bodies together with \emph{plain} BLS
+aggregation, rather than a dedicated sequential aggregate scheme. The
+reason for the choice is practical rather than theoretical. The
+construction needs no trapdoor permutations and no scheme-specific
+sequential signing operation; it uses the ordinary signing and
+aggregation operations of the CFRG BLS draft
+\citep{ietf-bls-signature}, so it can be built on any conforming
+library, and the order binding lives in data the verifier already has to
+hash. What we give up is that the hash chain must be recomputed by the
+verifier from the received bodies, whereas a native sequential aggregate
+carries order binding inside the signature object. Whether that trade is
+worth making is an empirical question about verification cost, which
+this paper does not settle. Certificate Transparency \citep{rfc9162}
+provided the model for our optional transparency log integration.
 
 \paragraph{MCP and agent-system security.}
 The security gap in cross-organizational MCP deployments has been
-empirically characterized by recent measurement work
-\citep{huang2026inch}, finding that a substantial fraction of
-deployed MCP servers lack adequate caller identity verification.
-\citet{maloyan2026breaking} identify additional protocol-level
-vulnerabilities in MCP. These works establish the problem but do not
-propose cryptographic solutions. Single-organization runtime
-enforcement approaches \citep{buhler2025agentbound} provide
+empirically characterized by recent measurement work.
+\citet{zhou2026mcpauth} surveyed 7,973 live remote MCP servers and found
+40.55\% exposing tools without authentication; of the OAuth-enabled
+servers they were able to probe actively, every one exhibited at least
+one authentication flaw, and the disclosure process yielded nine CVE
+identifiers. \citet{maloyan2026breaking} identify additional
+protocol-level vulnerabilities in MCP. These works establish the problem
+but do not propose cryptographic solutions. Single-organization runtime
+enforcement approaches \citep{buhler2026agentbound} provide
 defense-in-depth within an organization's perimeter but do not
 provide cross-organizational cryptographic proofs and are not
 designed to extend across organizational boundaries.
@@ -1383,8 +2025,9 @@ share the high-level goal of providing verifiable invocation
 authorization in agent settings. The principal differences are:
 DelegationChain provides BLS-based aggregate signatures over
 multi-hop chains, where AIP relies on individual signatures per hop;
-DelegationChain specifies a formal policy expression language with
-decidability proofs, where AIP's policy semantics are less formally
+DelegationChain specifies a formal policy expression language with a
+proof of evaluator termination and a soundness proof for its scope
+containment check, where AIP's policy semantics are less formally
 treated; and DelegationChain includes a complete federated identity
 infrastructure specification, where AIP focuses on the token
 construction. The two designs are largely complementary, and either
@@ -1404,6 +2047,90 @@ DelegationChain not as a replacement for these systems but as
 complementary infrastructure for the specific use case of verifiable
 agent-to-tool invocation across organizations.
 
+\paragraph{Summary comparison.}
+\Cref{tab:comparison} collects the comparisons made above. The columns
+are the four properties this paper claims to combine
+(\cref{sec:conclusion}), plus the signature scheme, the attenuation
+mechanism, and the degree to which the policy component is formally
+specified. We have marked a cell \tunspec{} wherever the cited source
+does not settle the question, rather than infer an answer from an
+implementation. The reader should note that our own row is not a column
+of \tyes: offline verification is qualified for DelegationChain as it is
+for several others, for the reasons \cref{sec:limitations} gives.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\caption{DelegationChain against related systems.
+\tyes{}~provided; \tpart{}~provided with qualifications (see notes);
+\tno{}~not provided; \tunspec{}~not specified by the cited source.
+``No anchor'' abbreviates cross-organizational verification without a
+shared trust anchor.}
+\label{tab:comparison}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\begin{tabular}{@{}l cccc L{2.3cm} L{2.0cm} L{2.6cm}@{}}
+\toprule
+System & \rotatebox{90}{No anchor} & \rotatebox{90}{Param.\ bind}
+       & \rotatebox{90}{Aggregat.} & \rotatebox{90}{Offline}
+       & Signature scheme & Attenuation & Policy formalization \\
+\midrule
+DelegationChain
+  & \tyes & \tyes & \tyes & \tpart
+  & BLS12-381, aggregate & scope containment
+  & typed grammar; termination proof; sound containment check \\[2pt]
+Macaroons \citep{birgisson2014macaroons}
+  & \tpart & \tyes & \tno & \tpart
+  & HMAC chain & caveat append & caveats, informal \\[2pt]
+UCAN \citep{ucan-spec}
+  & \tyes & \tyes & \tno & \tyes
+  & EdDSA / ECDSA & capability attenuation
+  & policy language, specified \\[2pt]
+SPKI/SDSI \citep{rfc2693}
+  & \tyes & \tpart & \tno & \tyes
+  & scheme-independent & 5-tuple reduction
+  & tag \texttt{*}-forms, specified \\[2pt]
+X.509 proxy certs \citep{rfc3820}
+  & \tno & \tunspec & \tno & \tpart
+  & X.509 (RSA / ECDSA) & embedded policy field
+  & policy field opaque \\[2pt]
+Biscuit \citep{biscuit-spec}
+  & \tyes & \tno & \tno & \tyes
+  & Ed25519 / ECDSA-P256 & offline block append
+  & Datalog, specified semantics \\[2pt]
+SPIFFE \citep{spiffe}
+  & \tpart & \tno & \tno & \tyes
+  & X.509 / JWS & \tno & n/a (identity only) \\[2pt]
+OAuth 2.1 \citep{oauth21}
+  & \tno & \tno & \tno & \tpart
+  & JWS (bearer) & \tno & scopes, informal \\[2pt]
+AIP \citep{prakash2026aip}
+  & \tyes & \tyes & \tno & \tunspec
+  & JWS / Biscuit & capability attenuation
+  & Datalog, via Biscuit \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\emph{Notes on the qualified cells.} Macaroons is \tpart{} on
+\emph{no anchor} because the target service must hold its own root
+secret, while third-party caveats require no secret shared with the
+third party; it is \tpart{} on \emph{offline} for the same reason, since
+discharging a third-party caveat costs a round trip. SPKI/SDSI is
+\tpart{} on \emph{parameter binding} because authorization tags
+constrain values through \texttt{*}-forms without binding a certificate
+to one invocation's exact parameters. X.509 proxy certificates are
+\tunspec{} on parameter binding because RFC 3820 names a policy language
+by OID and carries its bytes without specifying one, and \tpart{} on
+offline because path validation is local while revocation checking is
+not. Biscuit is \tno{} on parameter binding because attenuation
+constrains future use rather than committing to a single call. SPIFFE is
+\tpart{} on \emph{no anchor} because cross-domain use requires SPIFFE
+Federation. OAuth 2.1 is \tpart{} on offline because a JWS access token
+verifies locally while introspection does not. AIP is \tunspec{} on
+offline because the source does not state it. DelegationChain is
+\tpart{} on offline for the reasons given in \cref{sec:limitations}.
+
 \subsection{Limitations}
 \label{sec:limitations}
 
@@ -1419,8 +2146,37 @@ wall-clock latency in the deployment configurations of interest will
 depend on implementation choices (BLS library, multi-pairing strategy,
 deserialization performance) that this paper does not commit to.
 A Rust reference implementation using the \texttt{blst} library is
-under development; empirical performance data will appear in a
-follow-up paper or extended version.
+under development, and the empirical evaluation described in
+\cref{sec:future-work} is in progress.
+
+\paragraph{Offline verification is qualified.}
+We claim verification that requires no synchronous call to the issuing
+authority \emph{on the dominant path}, and the qualification is load
+bearing. Three dependencies remain. Certificate resolution
+(\cref{sec:identity-resolution}) queries the issuing registry on a cache
+miss. Policy resolution does the same for a policy hash the verifier has
+not seen. Revocation (\cref{sec:identity-revocation}) requires polling,
+push, or log monitoring, which is a continuous background dependency
+rather than a per-request one. In the steady state --- a partner whose
+certificates and policies are already cached --- verification touches
+none of these and is genuinely local. On a cold cache it is not, and
+statements elsewhere in this paper about offline verification should be
+read with that scope.
+
+The obvious repair is to carry certificates in the chain, as X.509 does,
+so that a verifier needs the registry root key but not the registry.
+This would make verification offline modulo revocation, and we note it
+as a deployment option rather than adopting it, because the arithmetic
+is unfavourable in exactly the dimension the design optimizes. A
+certificate carries a 48-byte public key and a 96-byte registry
+signature before any identifier, timestamp, or serial-number field, so
+attaching one per hop necessarily costs more per hop than the 96 bytes
+that aggregation saves across the whole chain. A design that carried
+certificates inline would be giving up the bandwidth argument for
+aggregation in order to buy offline verification, and it is not obvious
+which of the two a deployment should prefer. Settling it requires the
+measurements described in \cref{sec:future-work}, not further argument
+here.
 
 \paragraph{Security arguments are sketches, not proofs.}
 \Cref{sec:security} presents proof sketches that reduce protocol
@@ -1544,18 +2300,24 @@ assurance that an incoming tool invocation was authorized by a
 specific agent operating within a specific scope on behalf of specific
 principals, with specific parameter values --- and they need this
 assurance without depending on the sending organization's
-infrastructure being available or trustworthy at verification time.
+infrastructure being trustworthy at verification time, and, so far as
+possible, without depending on its being reachable either.
 
-We have presented DelegationChain, a protocol providing four
-properties jointly: cross-organizational verification without a
-shared trust anchor, parameter-bound authorization, aggregatable
-proof chains, and offline verification. The protocol's cryptographic
+We have presented DelegationChain, a protocol combining
+cross-organizational verification without a shared trust anchor,
+parameter-bound authorization, and aggregatable proof chains, with
+verification that is local in the steady state. That last property is
+qualified rather than absolute: certificate and policy resolution touch
+the issuing registry on a cache miss, and revocation is a standing
+background dependency (\cref{sec:limitations}). The protocol's cryptographic
 core is a recursive chain digest construction over BLS12-381
 aggregate signatures, with proof-of-possession-protected registration
 defending against rogue-key attacks. The associated policy expression
-language is decidable, terminating, and side-effect-free by
-construction, supporting the verifier's scope monotonicity check
-without introducing computational or semantic hazards. The federated
+language is terminating and side-effect-free by construction, and
+admits a polynomial-time containment check that is sound with respect
+to its semantic subset relation, supporting the verifier's scope
+monotonicity check without introducing computational or semantic
+hazards. The federated
 identity infrastructure permits interoperation between mutually
 distrusting organizations through direct peering, federated
 transparency logs, or hierarchical attestation, as deployment context
@@ -1597,8 +2359,7 @@ answer.
 The author thanks colleagues at EKTU for early
 discussion of the protocol's design, and the broader MCP and agent
 security research communities for the context in which this work
-was undertaken. Detailed acknowledgments will be added in a
-subsequent revision following peer review of the analysis.
+was undertaken.
 
 \section*{Use of AI Tools}
 \label{sec:ai-tools}
@@ -1611,13 +2372,30 @@ sketches for the security theorems. The model also served as a
 critical reader, identifying issues such as overstated claims about
 verification complexity that were subsequently corrected.
 
+A subsequent revision pass, correcting technical and statement-level
+errors identified in review of the first draft, was also carried out
+with model assistance, working from a written list of defects supplied
+by the author. That pass revised the revocation, policy-evaluation, and
+subset-relation material of \cref{sec:identity-revocation},
+\cref{sec:policy-eval}, and \cref{sec:policy-subset}; corrected several
+proof sketches in \cref{sec:security}; and re-ran the bibliography
+verification described below. The design decisions it implemented were
+made by the author.
+
 The protocol design, threat model, and all underlying research
 decisions are the author's own. All technical claims have been
 independently verified by the author against authoritative sources;
-the model's outputs were not accepted without scrutiny. All cited
-references were verified against original sources. The author takes
-full responsibility for the content, accuracy, and conclusions of
-this work.
+the model's outputs were not accepted without scrutiny.
+
+Every cited reference was re-verified against an original source on
+2026-08-30. That pass found and corrected three errors. One cited
+preprint had been withdrawn by its authors and has been removed rather
+than replaced with a weakened claim; one had been published under a
+different title, which is now cited; and the BLS12-381 curve parameters
+had been attributed to the CFRG BLS signature draft, which specifies the
+signature scheme rather than the curve, and are now cited to the
+pairing-friendly-curves draft. The author takes full responsibility for
+the content, accuracy, and conclusions of this work.
 
 \printbibliography
 

@@ -1,7 +1,24 @@
 % ============================================================
 % DelegationChain paper — references
-% Last verified: 2026-05-21
-% All entries cross-checked against authoritative sources.
+% Last verified: 2026-08-30
+% Every entry re-checked against an original source on this date
+% (publisher page, RFC Editor info page, IETF Datatracker, DBLP
+% record, arXiv listing, or the specification's own repository).
+% Entries that could not be fully verified are marked % UNVERIFIED.
+%
+% Changes at the 2026-08-30 pass:
+%   - huang2026inch REMOVED: arXiv:2603.07473 was withdrawn by its
+%     authors on 2026-07-21 ("flaws in experimental methodology and
+%     unresolved ethical issues in data collection"). Replaced by
+%     zhou2026mcpauth.
+%   - buhler2025agentbound: title corrected and venue added; the v1
+%     title cited previously is not the published title.
+%   - ietf-bls-signature: advanced 05 -> 07 (current revision).
+%   - ietf-pairing-curves ADDED: the curve parameters come from this
+%     draft, not from the signature draft.
+%   - oauth21: advanced 12 -> 15 (current revision).
+%   - anthropic-mcp: pinned to specification revision 2025-11-25.
+%   - ucan-spec: pinned to 1.0.0-rc.1.
 % ============================================================
 
 % --- BLS signatures and pairing-based cryptography ---
@@ -15,28 +32,75 @@
   publisher = {Springer},
   series    = {Lecture Notes in Computer Science},
   volume    = {2248},
+  doi       = {10.1007/3-540-45682-1_30},
 }
 
 @inproceedings{boneh2018compact,
   author    = {Dan Boneh and Manu Drijvers and Gregory Neven},
   title     = {Compact Multi-Signatures for Smaller Blockchains},
-  booktitle = {Advances in Cryptology -- ASIACRYPT 2018},
+  booktitle = {Advances in Cryptology -- ASIACRYPT 2018, Part II},
   year      = {2018},
   pages     = {435--464},
   publisher = {Springer},
   series    = {Lecture Notes in Computer Science},
   volume    = {11273},
+  doi       = {10.1007/978-3-030-03329-3_15},
 }
 
+% Specifies the BLS SIGNATURE SCHEME (signing, verification,
+% aggregation, proof-of-possession) -- not the curve parameters.
 @misc{ietf-bls-signature,
-  author       = {Dan Boneh and Sergey Gorbunov and Riad S. Wahby and
-                  Hoeteck Wee and Christopher A. Wood and Zhenfei Zhang},
+  author       = {Dan Boneh and John Bradley and Sergey Gorbunov and
+                  Riad S. Wahby and Hoeteck Wee and
+                  Christopher A. Wood and Zhenfei Zhang},
   title        = {{BLS} Signatures},
-  howpublished = {Internet-Draft draft-irtf-cfrg-bls-signature-05},
-  year         = {2022},
-  month        = jun,
+  howpublished = {Internet-Draft draft-irtf-cfrg-bls-signature-07},
+  year         = {2026},
+  month        = jul,
   publisher    = {IRTF Crypto Forum Research Group},
+  url          = {https://datatracker.ietf.org/doc/draft-irtf-cfrg-bls-signature/07/},
   note         = {Work in progress.},
+}
+
+% Specifies the BLS12-381 CURVE PARAMETERS. Cited separately from
+% ietf-bls-signature, which specifies the signature scheme only.
+@misc{ietf-pairing-curves,
+  author       = {Yumi Sakemi and Satoru Kanno and Riad S. Wahby},
+  title        = {Pairing-Friendly Curves},
+  howpublished = {Internet-Draft draft-irtf-cfrg-pairing-friendly-curves-13},
+  year         = {2026},
+  month        = jul,
+  publisher    = {IRTF Crypto Forum Research Group},
+  url          = {https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/13/},
+  note         = {Work in progress. Sakemi is listed as editor.},
+}
+
+@inproceedings{lmrs2004seqagg,
+  author    = {Anna Lysyanskaya and Silvio Micali and Leonid Reyzin and
+               Hovav Shacham},
+  title     = {Sequential Aggregate Signatures from Trapdoor
+               Permutations},
+  booktitle = {Advances in Cryptology -- EUROCRYPT 2004},
+  year      = {2004},
+  pages     = {74--90},
+  publisher = {Springer},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {3027},
+  doi       = {10.1007/978-3-540-24676-3_5},
+}
+
+@inproceedings{boldyreva2007ordered,
+  author    = {Alexandra Boldyreva and Craig Gentry and Adam O'Neill and
+               Dae Hyun Yum},
+  title     = {Ordered Multisignatures and Identity-Based Sequential
+               Aggregate Signatures, with Applications to Secure
+               Routing},
+  booktitle = {Proceedings of the 14th ACM Conference on Computer and
+               Communications Security (CCS)},
+  year      = {2007},
+  pages     = {276--285},
+  publisher = {ACM},
+  doi       = {10.1145/1315245.1315280},
 }
 
 % --- IETF standards ---
@@ -44,7 +108,7 @@
 @misc{rfc8949,
   author       = {Carsten Bormann and Paul Hoffman},
   title        = {Concise Binary Object Representation ({CBOR})},
-  howpublished = {RFC 8949},
+  howpublished = {RFC 8949 (STD 94)},
   year         = {2020},
   month        = dec,
   publisher    = {Internet Engineering Task Force},
@@ -73,13 +137,38 @@
   doi          = {10.17487/RFC9380},
 }
 
+@misc{rfc2693,
+  author       = {Carl M. Ellison and Bill Frantz and Butler Lampson and
+                  Ronald L. Rivest and Brian M. Thomas and
+                  Tatu Ylonen},
+  title        = {{SPKI} Certificate Theory},
+  howpublished = {RFC 2693},
+  year         = {1999},
+  month        = sep,
+  publisher    = {Internet Engineering Task Force},
+  doi          = {10.17487/RFC2693},
+}
+
+@misc{rfc3820,
+  author       = {Steven Tuecke and Von Welch and Doug Engert and
+                  Laura Pearlman and Mary Thompson},
+  title        = {Internet {X.509} Public Key Infrastructure ({PKI})
+                  Proxy Certificate Profile},
+  howpublished = {RFC 3820},
+  year         = {2004},
+  month        = jun,
+  publisher    = {Internet Engineering Task Force},
+  doi          = {10.17487/RFC3820},
+}
+
 @misc{oauth21,
   author       = {Dick Hardt and Aaron Parecki and Torsten Lodderstedt},
   title        = {The {OAuth} 2.1 Authorization Framework},
-  howpublished = {Internet-Draft draft-ietf-oauth-v2-1-12},
-  year         = {2024},
-  month        = nov,
+  howpublished = {Internet-Draft draft-ietf-oauth-v2-1-15},
+  year         = {2026},
+  month        = mar,
   publisher    = {Internet Engineering Task Force},
+  url          = {https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/15/},
   note         = {Work in progress.},
 }
 
@@ -97,64 +186,130 @@
 }
 
 @phdthesis{miller2006robust,
-  author = {Mark Samuel Miller},
-  title  = {Robust Composition: Towards a Unified Approach to Access
-            Control and Concurrency Control},
-  school = {Johns Hopkins University},
-  year   = {2006},
+  author  = {Mark Samuel Miller},
+  title   = {Robust Composition: Towards a Unified Approach to Access
+             Control and Concurrency Control},
+  school  = {Johns Hopkins University},
+  year    = {2006},
   address = {Baltimore, Maryland},
-  month  = may,
+  month   = may,
 }
 
 @misc{ucan-spec,
   author       = {{UCAN Working Group}},
   title        = {{User Controlled Authorization Networks (UCAN)}
                   Specification},
-  howpublished = {\url{https://github.com/ucan-wg/spec}},
-  year         = {2024},
-  note         = {Accessed 2026. Specification maintained by the
-                  UCAN Working Group.},
+  howpublished = {Version 1.0.0-rc.1},
+  year         = {2025},
+  url          = {https://github.com/ucan-wg/spec},
+  note         = {Delegation semantics are specified separately in the
+                  UCAN Delegation document, envelope tag
+                  \texttt{ucan/dlg@1.0.0-rc.1}.},
+}
+
+@misc{biscuit-spec,
+  author       = {{Eclipse Biscuit Project}},
+  title        = {Biscuit Authorization Token Specification},
+  howpublished = {Specification 3.x, Datalog version 3.3},
+  year         = {2026},
+  url          = {https://github.com/eclipse-biscuit/biscuit},
+  note         = {Originally developed at Clever Cloud; now an Eclipse
+                  Foundation project. The specification is versioned by
+                  Datalog language version rather than by dated
+                  release; 3.3 is the highest version defined in
+                  SPECIFICATIONS.md as of 2026-08-30.},
+}
+
+@phdthesis{bauer2003pca,
+  author  = {Lujo Bauer},
+  title   = {Access Control for the Web via Proof-Carrying
+             Authorization},
+  school  = {Princeton University},
+  year    = {2003},
+  address = {Princeton, New Jersey},
+  month   = nov,
+}
+
+@inproceedings{appel1999pca,
+  author    = {Andrew W. Appel and Edward W. Felten},
+  title     = {Proof-Carrying Authentication},
+  booktitle = {Proceedings of the 6th ACM Conference on Computer and
+               Communications Security (CCS)},
+  year      = {1999},
+  pages     = {52--62},
+  publisher = {ACM},
+  doi       = {10.1145/319709.319718},
+}
+
+@misc{zcapld,
+  author       = {Christine Lemmer-Webber and Dmitri Zagidulin and
+                  Manu Sporny and Benjamin Goering},
+  title        = {Authorization Capabilities},
+  howpublished = {W3C Credentials Community Group Draft Report,
+                  v0.4.0-draft},
+  year         = {2025},
+  url          = {https://w3c-ccg.github.io/zcap-spec/},
+  note         = {Commonly referred to as ZCAP-LD. Editors and version
+                  taken from the specification's ReSpec configuration;
+                  the document carries no publication date.},
 }
 
 % --- Workload identity ---
 
 @misc{spiffe,
-  author       = {{Cloud Native Computing Foundation}},
+  author       = {{SPIFFE Project}},
   title        = {The {SPIFFE} Specifications},
-  howpublished = {\url{https://github.com/spiffe/spiffe}},
-  year         = {2024},
-  note         = {Accessed 2026. Project active since 2017.},
+  howpublished = {Specification set, stability designation ``Stable''},
+  year         = {2026},
+  publisher    = {Cloud Native Computing Foundation},
+  url          = {https://github.com/spiffe/spiffe/tree/main/standards},
+  note         = {The SPIFFE standards (SPIFFE-ID, X509-SVID,
+                  JWT-SVID, Workload API, Federation) are not issued as
+                  numbered releases; each document carries a stability
+                  designation instead. Cited as of 2026-08-30, when the
+                  documents referenced here were marked Stable.},
 }
 
 % --- Model Context Protocol and MCP security ---
 
 @misc{anthropic-mcp,
-  author       = {{Anthropic}},
+  author       = {{Model Context Protocol Project}},
   title        = {Model Context Protocol Specification},
-  howpublished = {\url{https://modelcontextprotocol.io}},
-  year         = {2024},
-  note         = {Introduced November 2024.},
+  howpublished = {Revision 2025-11-25},
+  year         = {2025},
+  month        = nov,
+  url          = {https://modelcontextprotocol.io/specification/2025-11-25},
+  note         = {Introduced by Anthropic in November 2024 and
+                  contributed to the Agentic AI Foundation, a directed
+                  fund of the Linux Foundation, in December 2025.
+                  Revisions are identified by date; this paper cites
+                  revision 2025-11-25 throughout.},
 }
 
-@article{huang2026inch,
-  author  = {Yuhang Huang and Boyang Ma and Biwei Yan and
-             Xuelong Dai and Yechao Zhang and Minghui Xu and
-             Kaidi Xu and Yue Zhang},
-  title   = {Give Them an Inch and They Will Take a Mile:
-             Understanding and Measuring Caller Identity Confusion in
-             {MCP}-Based {AI} Systems},
-  journal = {arXiv preprint arXiv:2603.07473},
+@article{zhou2026mcpauth,
+  author  = {Huijun Zhou and Xiaohan Zhang and Haozhe Zhang and
+             Haoyang Zhang and Mi Zhang and Min Yang},
+  title   = {A First Measurement Study on Authentication Security in
+             Real-World Remote {MCP} Servers},
+  journal = {arXiv preprint arXiv:2605.22333},
   year    = {2026},
+  month   = may,
+  url     = {https://arxiv.org/abs/2605.22333},
 }
 
-@article{buhler2025agentbound,
-  author  = {Christoph B{\"u}hler and Matteo Biagiola and
-             Luca Di Grazia and Guido Salvaneschi},
-  title   = {Securing {AI} Agent Execution},
-  journal = {arXiv preprint arXiv:2510.21236},
-  year    = {2025},
-  note    = {Introduces the AgentBound framework for MCP server
-             access control.},
+@inproceedings{buhler2026agentbound,
+  author    = {Christoph B{\"u}hler and Matteo Biagiola and
+               Luca Di Grazia and Guido Salvaneschi},
+  title     = {{AgentBound}: Securing Execution Boundaries of {AI}
+               Agents},
+  booktitle = {Proceedings of the 34th ACM Joint European Software
+               Engineering Conference and Symposium on the Foundations
+               of Software Engineering (FSE)},
+  year      = {2026},
+  publisher = {ACM},
+  note      = {Preprint: arXiv:2510.21236. The arXiv v1 title,
+               ``Securing AI Agent Execution'', differs from the
+               published title.},
 }
 
 @article{maloyan2026breaking,
@@ -165,6 +320,8 @@
              Agents},
   journal = {arXiv preprint arXiv:2601.17549},
   year    = {2026},
+  month   = jan,
+  url     = {https://arxiv.org/abs/2601.17549},
 }
 
 @article{prakash2026aip,
@@ -173,4 +330,6 @@
              Across {MCP} and {A2A}},
   journal = {arXiv preprint arXiv:2603.24775},
   year    = {2026},
+  month   = mar,
+  url     = {https://arxiv.org/abs/2603.24775},
 }

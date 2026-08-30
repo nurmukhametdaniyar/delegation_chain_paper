@@ -21,6 +21,23 @@
 \usepackage{caption}
 \captionsetup{font=small, labelfont=bf}
 
+% --- Diagrams ---
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, fit, backgrounds}
+
+% --- Algorithms ---
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+% Full-line comment for algorithmicx (not provided by default).
+\algnewcommand{\LComment}[1]{\Statex \(\triangleright\)~\textit{#1}}
+
+% Algorithm 1 is taller than the default \topfraction allows, which
+% otherwise defers it to the end of the document.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.7}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.75}
+
 % --- Code listings ---
 \usepackage{listings}
 \usepackage{xcolor}
@@ -48,7 +65,7 @@
     urlcolor=blue!50!black,
     citecolor=blue!50!black,
     pdftitle={DelegationChain},
-    pdfauthor={Daniyar Amangeldin},
+    pdfauthor={Daniyar Nurmukhamet},
 }
 \usepackage[capitalize]{cleveref}
 
@@ -71,7 +88,7 @@
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}
 \theoremstyle{remark}
-\newtheorem*{remark}{Remark}
+\newtheorem{remark}{Remark}
 
 % --- Spacing ---
 \setlength{\parskip}{0.4em}
@@ -89,5 +106,12 @@
 \newcommand{\sk}{\mathit{sk}}
 \newcommand{\pk}{\mathit{pk}}
 
-% Threat label macro
+% Comparison-table cell macros
+\newcommand{\tyes}{\ensuremath{\checkmark}}
+\newcommand{\tno}{\textendash}
+\newcommand{\tpart}{\textsf{p}}
+\newcommand{\tunspec}{\textsf{u}}
+
+% Threat label macros
 \newcommand{\threat}[2]{\textbf{T#1:} \emph{#2}}
+\newcommand{\threatref}[1]{\mbox{T#1}}

@@ -1,0 +1,38 @@
+# Build output directory (latexmk -outdir=build)
+build/
+
+# LaTeX intermediates (in case of in-tree builds)
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.brf
+*.fdb_latexmk
+*.fls
+*.idx
+*.ilg
+*.ind
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+*.xdv
+
+# Latexdiff / editing artifacts
+*-diff.tex
+*.bak
+*~
+
+# Compiled document (built from source; drop this line to track the PDF)
+*.pdf
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
