@@ -1,0 +1,176 @@
+% ============================================================
+% DelegationChain paper — references
+% Last verified: 2026-05-21
+% All entries cross-checked against authoritative sources.
+% ============================================================
+
+% --- BLS signatures and pairing-based cryptography ---
+
+@inproceedings{boneh2001bls,
+  author    = {Dan Boneh and Ben Lynn and Hovav Shacham},
+  title     = {Short Signatures from the {Weil} Pairing},
+  booktitle = {Advances in Cryptology -- ASIACRYPT 2001},
+  year      = {2001},
+  pages     = {514--532},
+  publisher = {Springer},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {2248},
+}
+
+@inproceedings{boneh2018compact,
+  author    = {Dan Boneh and Manu Drijvers and Gregory Neven},
+  title     = {Compact Multi-Signatures for Smaller Blockchains},
+  booktitle = {Advances in Cryptology -- ASIACRYPT 2018},
+  year      = {2018},
+  pages     = {435--464},
+  publisher = {Springer},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {11273},
+}
+
+@misc{ietf-bls-signature,
+  author       = {Dan Boneh and Sergey Gorbunov and Riad S. Wahby and
+                  Hoeteck Wee and Christopher A. Wood and Zhenfei Zhang},
+  title        = {{BLS} Signatures},
+  howpublished = {Internet-Draft draft-irtf-cfrg-bls-signature-05},
+  year         = {2022},
+  month        = jun,
+  publisher    = {IRTF Crypto Forum Research Group},
+  note         = {Work in progress.},
+}
+
+% --- IETF standards ---
+
+@misc{rfc8949,
+  author       = {Carsten Bormann and Paul Hoffman},
+  title        = {Concise Binary Object Representation ({CBOR})},
+  howpublished = {RFC 8949},
+  year         = {2020},
+  month        = dec,
+  publisher    = {Internet Engineering Task Force},
+  doi          = {10.17487/RFC8949},
+}
+
+@misc{rfc9162,
+  author       = {Ben Laurie and Eran Messeri and Rob Stradling},
+  title        = {Certificate Transparency Version 2.0},
+  howpublished = {RFC 9162},
+  year         = {2021},
+  month        = dec,
+  publisher    = {Internet Engineering Task Force},
+  doi          = {10.17487/RFC9162},
+}
+
+@misc{rfc9380,
+  author       = {Armando Faz-Hern{\'a}ndez and Sam Scott and
+                  Nick Sullivan and Riad S. Wahby and
+                  Christopher A. Wood},
+  title        = {Hashing to Elliptic Curves},
+  howpublished = {RFC 9380},
+  year         = {2023},
+  month        = aug,
+  publisher    = {Internet Engineering Task Force},
+  doi          = {10.17487/RFC9380},
+}
+
+@misc{oauth21,
+  author       = {Dick Hardt and Aaron Parecki and Torsten Lodderstedt},
+  title        = {The {OAuth} 2.1 Authorization Framework},
+  howpublished = {Internet-Draft draft-ietf-oauth-v2-1-12},
+  year         = {2024},
+  month        = nov,
+  publisher    = {Internet Engineering Task Force},
+  note         = {Work in progress.},
+}
+
+% --- Capability-based authorization ---
+
+@inproceedings{birgisson2014macaroons,
+  author    = {Arnar Birgisson and Joe Gibbs Politz and
+               {\'U}lfar Erlingsson and Ankur Taly and
+               Michael Vrable and Mark Lentczner},
+  title     = {Macaroons: Cookies with Contextual Caveats for
+               Decentralized Authorization in the Cloud},
+  booktitle = {Network and Distributed System Security Symposium (NDSS)},
+  year      = {2014},
+  publisher = {Internet Society},
+}
+
+@phdthesis{miller2006robust,
+  author = {Mark Samuel Miller},
+  title  = {Robust Composition: Towards a Unified Approach to Access
+            Control and Concurrency Control},
+  school = {Johns Hopkins University},
+  year   = {2006},
+  address = {Baltimore, Maryland},
+  month  = may,
+}
+
+@misc{ucan-spec,
+  author       = {{UCAN Working Group}},
+  title        = {{User Controlled Authorization Networks (UCAN)}
+                  Specification},
+  howpublished = {\url{https://github.com/ucan-wg/spec}},
+  year         = {2024},
+  note         = {Accessed 2026. Specification maintained by the
+                  UCAN Working Group.},
+}
+
+% --- Workload identity ---
+
+@misc{spiffe,
+  author       = {{Cloud Native Computing Foundation}},
+  title        = {The {SPIFFE} Specifications},
+  howpublished = {\url{https://github.com/spiffe/spiffe}},
+  year         = {2024},
+  note         = {Accessed 2026. Project active since 2017.},
+}
+
+% --- Model Context Protocol and MCP security ---
+
+@misc{anthropic-mcp,
+  author       = {{Anthropic}},
+  title        = {Model Context Protocol Specification},
+  howpublished = {\url{https://modelcontextprotocol.io}},
+  year         = {2024},
+  note         = {Introduced November 2024.},
+}
+
+@article{huang2026inch,
+  author  = {Yuhang Huang and Boyang Ma and Biwei Yan and
+             Xuelong Dai and Yechao Zhang and Minghui Xu and
+             Kaidi Xu and Yue Zhang},
+  title   = {Give Them an Inch and They Will Take a Mile:
+             Understanding and Measuring Caller Identity Confusion in
+             {MCP}-Based {AI} Systems},
+  journal = {arXiv preprint arXiv:2603.07473},
+  year    = {2026},
+}
+
+@article{buhler2025agentbound,
+  author  = {Christoph B{\"u}hler and Matteo Biagiola and
+             Luca Di Grazia and Guido Salvaneschi},
+  title   = {Securing {AI} Agent Execution},
+  journal = {arXiv preprint arXiv:2510.21236},
+  year    = {2025},
+  note    = {Introduces the AgentBound framework for MCP server
+             access control.},
+}
+
+@article{maloyan2026breaking,
+  author  = {Narek Maloyan and Dmitry Namiot},
+  title   = {Breaking the Protocol: Security Analysis of the
+             {Model Context Protocol} Specification and Prompt
+             Injection Vulnerabilities in Tool-Integrated {LLM}
+             Agents},
+  journal = {arXiv preprint arXiv:2601.17549},
+  year    = {2026},
+}
+
+@article{prakash2026aip,
+  author  = {Sunil Prakash},
+  title   = {{AIP}: Agent Identity Protocol for Verifiable Delegation
+             Across {MCP} and {A2A}},
+  journal = {arXiv preprint arXiv:2603.24775},
+  year    = {2026},
+}

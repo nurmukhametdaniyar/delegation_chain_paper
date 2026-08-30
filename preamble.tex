@@ -1,0 +1,93 @@
+% ============================================================
+% DelegationChain paper — preamble
+% Packages, settings, custom commands.
+% ============================================================
+
+% --- Document basics ---
+\usepackage[a4paper, margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% --- Math ---
+\usepackage{amsmath, amsthm, amssymb}
+\usepackage{mathtools}
+
+% --- Tables and figures ---
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{caption}
+\captionsetup{font=small, labelfont=bf}
+
+% --- Code listings ---
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{codebg}{HTML}{F7F7F7}
+\definecolor{codeborder}{HTML}{D0D0D0}
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codebg},
+    frame=single,
+    rulecolor=\color{codeborder},
+    breaklines=true,
+    keepspaces=true,
+    columns=fullflexible,
+    xleftmargin=4pt,
+    xrightmargin=4pt,
+    aboveskip=8pt,
+    belowskip=8pt,
+}
+
+% --- Cross-references ---
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue!50!black,
+    citecolor=blue!50!black,
+    pdftitle={DelegationChain},
+    pdfauthor={Daniyar Amangeldin},
+}
+\usepackage[capitalize]{cleveref}
+
+% --- Bibliography ---
+\usepackage[
+    backend=biber,
+    style=authoryear,
+    sorting=nyt,
+    natbib=true,
+    maxcitenames=2,
+    mincitenames=1,
+    maxbibnames=99,
+]{biblatex}
+\addbibresource{references.bib}
+
+% --- Theorem environments ---
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}{Proposition}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% --- Spacing ---
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{1.2em}
+
+% --- Custom commands ---
+\newcommand{\G}[1]{\mathbb{G}_{#1}}
+\newcommand{\Gt}{\mathbb{G}_T}
+\newcommand{\Zq}{\mathbb{Z}_q}
+\newcommand{\pair}[2]{e(#1, #2)}
+\newcommand{\Sign}{\mathsf{Sign}}
+\newcommand{\Verify}{\mathsf{Verify}}
+\newcommand{\HashG}{\mathsf{HashToG}_2}
+\newcommand{\Canon}{\mathsf{Canon}}
+\newcommand{\sk}{\mathit{sk}}
+\newcommand{\pk}{\mathit{pk}}
+
+% Threat label macro
+\newcommand{\threat}[2]{\textbf{T#1:} \emph{#2}}
