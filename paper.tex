@@ -817,7 +817,9 @@ the resolved certificate alone. Write $\mathrm{scope}(B_k)$ for the
 body's scope expression: the granted scope for the session body, the
 attenuated sub-scope for a delegation body. Finally, $\mathrm{org}(x)$ is
 the \texttt{organization-id} prefix of an identifier $x$
-(\cref{sec:identity-registration}), and $\mathit{Pinned}[o]$ is the set
+(\cref{sec:identity-registration}); $\mathit{Root}[o]$ is the registry
+root key the verifier holds for organization $o$
+(\cref{sec:identity-federated}); and $\mathit{Pinned}[o]$ is the set
 of policy hashes the verifier has accepted from organization $o$
 (\cref{sec:policy}).
 
@@ -860,6 +862,11 @@ temporal, and identity checks. Phases run cheapest-first; every
   \For{$k \gets 0$ \textbf{to} $N$}
     \State $\mathit{cert}_k \gets \Call{Resolve}{\mathrm{sid}(B_k)}$;
            \textbf{reject} if unresolvable
+    \State \textbf{reject} unless $\mathit{cert}_k$ verifies under
+           $\mathit{Root}[\mathrm{org}(\mathrm{sid}(B_k))]$
+    \State \textbf{reject} unless $\mathit{cert}_k.\text{registry\_id} =
+           \mathrm{org}(\mathrm{sid}(B_k))$
+           \Comment{registry owns the namespace}
     \State \textbf{reject} if $\mathit{cert}_k$ is expired or revoked at
            $t$
     \State $\pk_k \gets \mathit{cert}_k.\text{pk}$
@@ -1129,7 +1136,8 @@ Identifiers are structured as
 Registration produces a certificate binding an identifier to a public
 key, signed by the registry. Certificates contain version
 information, the identifier, the public key, the kind, the registry's
-identifier and public key, issuance and expiry timestamps, a
+identifier (\texttt{registry\_id}) and public key, issuance and expiry
+timestamps, a
 not-before timestamp, a serial number, and the registry's signature.
 Default certificate lifetimes are short --- 24 hours to 7 days for
 agents and signing services, with longer lifetimes permitted only in
@@ -1172,10 +1180,26 @@ Implementations should use library-provided subgroup checks (e.g.,
 Verifiers resolve identifiers to public keys by querying the issuing
 registry's resolution endpoint. The response includes the certificate
 and, if the registry is integrated with a transparency log, an
-inclusion proof. The verifier validates the certificate signature
-under the registry's root public key (cached from prior interaction or
-obtained out-of-band) and the inclusion proof against the log's
+inclusion proof. The verifier validates the certificate signature under
+the root public key it holds for the organization the identifier names,
+that is, for the identifier's \texttt{organization-id} prefix, bound to
+a root key by whichever trust mechanism of \cref{sec:identity-federated}
+the two organizations use. It also requires the certificate's
+\texttt{registry\_id} to equal that \texttt{organization-id}. If an
+inclusion proof is present, the verifier checks it against the log's
 current signed tree head.
+
+This binding between organization identifier and root key carries real
+weight. A registry is authoritative only for identifiers in its own
+organization's namespace. The naming rule of
+\cref{sec:identity-registration} is enforced here, by the verifier,
+rather than left as a convention. Without it, a registry the verifier
+trusts for one organization could issue a certificate for another
+organization's identifier: a certificate substitution
+(\threatref{5d}). And because the verifier looks up pinned policies by
+the organization named in the session body (\cref{sec:policy}), whoever
+controlled that registry could impersonate the other organization's
+issuer and grant sessions under the policies pinned for it.
 
 Verifiers cache resolved certificates to avoid registry queries on
 every verification. Cache entries are valid until the earlier of the
@@ -1782,7 +1806,8 @@ The security arguments below rest on the following assumptions:
     that root compromise reduces security to a recovery problem rather
     than a forgery problem.
     \item[\textbf{Verifier configuration integrity.}] The set of policy
-    hashes a verifier has pinned for each partner reflects its own
+    hashes a verifier has pinned for each partner, and the root key it
+    associates with each partner organization, reflect its own
     organization's decisions and cannot be written by the adversary.
     The first link of \cref{eq:chain-containment}, and through it
     \cref{thm:scope-monotonicity,thm:approval-binding}, is only as good
@@ -1875,7 +1900,14 @@ $S$, and the scope at hop $k+1$ is contained in the scope at hop $k$.
 
 \begin{proof}[Proof sketch]
 Phase 6 of \cref{alg:verify2} rejects any session whose policy hash is
-not pinned for the issuing organization. It then resolves $S$ by content
+not pinned for the issuing organization. That organization is
+$\mathrm{org}(\mathrm{sid}(B_0))$, read from the signed session body.
+Phase 5 of \cref{alg:verify} has already required the issuer's
+certificate to verify under the root the verifier holds for that
+organization, and to name it as its registry. So the pins consulted are
+those of the organization that actually issued the session, and a
+registry trusted only for some other organization cannot redirect the
+lookup. Phase 6 then resolves $S$ by content
 address, so by collision resistance of SHA-256 $S$ is the document the
 pinned hash names. Finally it checks each link of
 \cref{eq:chain-containment} explicitly, using the containment procedure
@@ -1969,9 +2001,15 @@ prevented and is discussed below. The identity family
 (\threatref{5a}--\threatref{5d}) is addressed by proof-of-possession
 (\cref{sec:identity-pop}), short-lived certificates and revocation
 (\cref{sec:identity-revocation}), and optional transparency log
-integration. Pinning adds an informal bound outside the honest-root
-assumption: an issuer whose keys have been compromised can still grant
-sessions only within policies the verifier has pinned.
+integration. Certificate substitution (\threatref{5d}) additionally
+relies on the namespace binding of \cref{sec:identity-resolution}: a
+certificate must verify under the root the verifier holds for the
+organization its identifier names. Pinning adds an informal bound
+outside the honest-root assumption. An issuer whose keys have been
+compromised can still grant sessions only within the policies the
+verifier has pinned for that issuer's own organization. The qualifier
+depends on the namespace binding. Without it, a compromise in one
+organization could draw on the policies pinned for another.
 
 The threats of \cref{sec:threat-bounded} are bounded, not prevented.
 A \emph{compromised approval service} (\threatref{4a}) can issue
@@ -2345,13 +2383,15 @@ under development, and the empirical evaluation described in
 \paragraph{Offline verification is qualified.}
 We claim verification that requires no synchronous call to the issuing
 authority \emph{on the dominant path}, and the qualification is load
-bearing. Three dependencies remain. Certificate resolution
-(\cref{sec:identity-resolution}) queries the issuing registry on a cache
-miss. Policy resolution need not: pinned policies can be fetched when
-they are pinned (\cref{sec:identity-resolution}), though a verifier that
-defers the fetch to first use pays a round trip then. Revocation (\cref{sec:identity-revocation}) requires polling,
-push, or log monitoring, which is a continuous background dependency
-rather than a per-request one. In the steady state --- a partner whose
+bearing. Two dependencies remain, and a third can be avoided.
+Certificate resolution (\cref{sec:identity-resolution}) queries the
+issuing registry on a cache miss. Revocation
+(\cref{sec:identity-revocation}) requires polling, push, or log
+monitoring, which is a continuous background dependency rather than a
+per-request one. Policy resolution is the avoidable one. Pinned
+policies can be fetched when they are pinned
+(\cref{sec:identity-resolution}), and only a verifier that defers the
+fetch to first use pays a round trip, on that call. In the steady state --- a partner whose
 certificates and policies are already cached --- verification touches
 none of these and is genuinely local. On a cold cache it is not, and
 statements elsewhere in this paper about offline verification should be
@@ -2501,8 +2541,9 @@ We have presented DelegationChain, a protocol combining
 cross-organizational verification without a shared trust anchor,
 parameter-bound authorization, and aggregatable proof chains, with
 verification that is local in the steady state. That last property is
-qualified rather than absolute: certificate and policy resolution touch
-the issuing registry on a cache miss, and revocation is a standing
+qualified rather than absolute: certificate resolution touches the
+issuing registry on a cache miss, policy resolution does too unless
+policies are fetched when they are pinned, and revocation is a standing
 background dependency (\cref{sec:limitations}). The protocol's cryptographic
 core is a recursive chain digest construction over BLS12-381
 aggregate signatures, with proof-of-possession-protected registration
@@ -2566,24 +2607,25 @@ sketches for the security theorems. The model also served as a
 critical reader, identifying issues such as overstated claims about
 verification complexity that were subsequently corrected.
 
-Three subsequent revision passes were also carried out with model
+Four subsequent revision passes were also carried out with model
 assistance, each working from written review comments supplied by the
 author. The first corrected technical and statement-level errors in the
 first draft. It revised the revocation, policy-evaluation, and
 subset-relation material of \cref{sec:identity-revocation},
 \cref{sec:policy-eval}, and \cref{sec:policy-subset}; corrected several
 proof sketches in \cref{sec:security}; and re-ran the bibliography
-verification described below. The second and third passes changed the
-protocol itself. They made the policy a ceiling against which the
-session scope is checked, and required verifiers to pin the policies
-they accept (\cref{sec:policy,sec:identity-resolution}). They also split
+verification described below. The later passes changed the protocol
+itself. They made the policy a ceiling against which the session scope
+is checked; required verifiers to pin the policies they accept; and
+bound each organization identifier to the registry root key that may
+certify it (\cref{sec:policy,sec:identity-resolution}). They also split
 the verifier into \cref{alg:verify,alg:verify2} and aligned it with the
 token fields of \cref{sec:protocol-digest}, including a new
 \texttt{kind} field. Finally, they rewrote the proofs of
 \cref{thm:chain-integrity,thm:scope-monotonicity,thm:approval-binding},
 added the verifier-configuration assumption of
 \cref{sec:security-assumptions}, and reclassified the approval-service
-threat in \cref{sec:threat-scope}. The design choices in all three
+threat in \cref{sec:threat-scope}. The design choices in all four
 passes were made or approved by the author.
 
 The protocol design, threat model, and all underlying research
