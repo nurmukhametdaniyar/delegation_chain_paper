@@ -118,8 +118,10 @@ injection within permitted policy, and separating the families the
 protocol prevents from the one it merely bounds
 (\cref{sec:threat-model}). Second, we specify the protocol's cryptographic
 core, wire format, verifier algorithm, and identity infrastructure
-(\cref{sec:protocol,sec:identity}) to a level of detail sufficient for an
-independent reference implementation. Third, we introduce a typed
+(\cref{sec:protocol,sec:identity}) to a level of detail sufficient for a
+reference implementation, though not for byte-exact interoperability
+between independent ones, which would require the normative
+specification \cref{sec:protocol} declines to fix. Third, we introduce a typed
 declarative policy expression language with a formal grammar, a
 polynomial-time scope containment procedure that is sound with respect
 to a semantic subset relation, and a proof of evaluator termination
@@ -331,19 +333,22 @@ compromises are addressed separately and explicitly.
 \subsection{Threats Within Scope}
 \label{sec:threat-scope}
 
-The threats in scope fall into six families; variants within a family
-share a mechanism of attack and, for the most part, a mechanism of
-defense. Threats are labelled for cross-reference in the security
-analysis (\cref{sec:security}).
+The threats in scope fall into six families. Variants within a family
+share a \emph{target} --- what the attacker is trying to subvert --- and
+not necessarily a defense; \cref{sec:security-threats} maps each variant
+individually to the theorem or mechanism that answers it. Threats are
+labelled for cross-reference in the security analysis
+(\cref{sec:security}).
 
-The families divide into two groups, and we keep them apart rather than
-presenting a single list. Five families (\cref{sec:threat-within-scope})
-the protocol is designed to \emph{prevent}. One
-(\cref{sec:threat-bounded}) it only \emph{bounds}: the attack remains
-possible and the protocol limits what it can achieve. Both are in scope,
-in the sense that the design is answerable for them, but a reader who
-took the second group for the first would credit the protocol with
-guarantees it does not provide.
+We divide them by what the protocol actually does about them rather than
+by family. \Cref{sec:threat-within-scope} lists what it \emph{prevents}.
+\Cref{sec:threat-bounded} lists what it only \emph{bounds}: the attack
+remains possible, and the protocol limits what it can achieve. Both are
+in scope, in the sense that the design is answerable for them, but a
+reader who took the second group for the first would credit the protocol
+with guarantees it does not provide. The division cuts across one
+family --- \threatref{4a} is bounded while the rest of T4 is prevented
+--- and we would rather have an untidy grouping than a tidy overclaim.
 
 \subsubsection{Threats the protocol prevents}
 \label{sec:threat-within-scope}
@@ -358,7 +363,11 @@ construct an authorization chain that was not produced by the legitimate
 delegation sequence, including reordering hops, dropping hops, or
 inserting unauthorized hops.
 
-\paragraph{T2 --- Manipulation of authorized content.}
+\paragraph{T2 --- Misrepresentation of granted authority.}
+The two variants share a target --- the authorization that reaches the
+verifier is not the authorization that was granted --- but not a
+defense: \threatref{2a} is defeated by the signature over the parameter
+encoding, \threatref{2b} by the containment check.
 
 \threat{2a}{Parameter substitution.} An adversary, positioned between a
 signer and a verifier, attempts to alter parameter values in an
@@ -383,9 +392,8 @@ token issued in one context (e.g., for a delegation) as if it had been
 issued in another context (e.g., for an invocation).
 
 \paragraph{T4 --- Subversion of the approval path.}
-
-\threat{4a}{Compromised approval service.} An adversary obtains the
-signing key of an approval service and issues fraudulent approvals.
+The remaining variant of this family, \threatref{4a}, is bounded rather
+than prevented and appears in \cref{sec:threat-bounded}.
 
 \threat{4b}{Approval routing attack.} An agent routes approval requests
 to a permissive approval service when policy requires a stricter one.
@@ -422,6 +430,21 @@ The protocol limits the damage the following attacks can do, but does
 not prevent them, and we do not claim that it does.
 \Cref{sec:security-threats} states what the bound is in each case.
 
+\paragraph{T4 --- Subversion of the approval path (one variant).}
+
+\threat{4a}{Compromised approval service.} An adversary obtains the
+signing key of an approval service and issues fraudulent approvals. The
+protocol cannot prevent this: a valid signature under a registered
+approval key is, by construction, a valid receipt. What it does is
+contain the consequences. Approval receipts are verified separately from
+the chain aggregate (\cref{sec:protocol-approvals}), so a compromised
+approval service cannot forge delegation chains, cannot enlarge any
+agent's scope, and cannot attest to anything beyond what it was already
+trusted to attest to; the blast radius is exactly the set of invocations
+that policy routes through that service. Detection and recovery belong
+to the identity infrastructure --- transparency log monitoring and
+rotation (\cref{sec:identity}).
+
 \paragraph{T6 --- Misuse of an agent within its own policy.}
 
 \threat{6a}{Prompt injection within policy.} An adversary, controlling
@@ -442,9 +465,9 @@ them requires mechanisms orthogonal to the protocol.
 A fully compromised signing service can produce signatures on any
 messages within an agent's policy; the protocol cannot prevent this and
 relies on operational hardening (HSM-based key custody, monitored
-access). A fully compromised approval service can produce fraudulent
-approvals; mitigation is via transparency log monitoring (\cref{sec:identity})
-and rotation. Side-channel attacks on cryptographic implementations are
+access). Compromise of an approval service is treated in
+\cref{sec:threat-bounded} rather than here, because the protocol does
+bound its effect even though it cannot prevent it. Side-channel attacks on cryptographic implementations are
 out of scope; we rely on the security properties of well-audited BLS
 libraries such as \texttt{blst}. Attacks on the human approver's device or
 authentication mechanism are out of scope; the protocol assumes a trusted
@@ -566,28 +589,35 @@ The issuer signs:
 \begin{equation}
 m_0 = H(\text{TAG\_SES} \,\|\, \Canon(\text{SessionBody}))
 \end{equation}
-where SessionBody contains the orchestrator's identifier and public key,
-a session identifier, a hash committing to the governing policy, a
-scope expression, issue and expiry timestamps, the issuer's identifier,
-and a fresh nonce.
+where SessionBody contains the issuer's identifier
+(\texttt{issuer\_id}), the orchestrator's identifier and public key
+(\texttt{subject\_id}, \texttt{subject\_pk}), a session identifier, a
+hash committing to the governing policy (\texttt{policy\_hash}), a
+scope expression, issue and expiry timestamps, and a fresh nonce.
 
 \paragraph{Delegation messages.}
 For each intermediate hop $A_k$ with $1 \le k < N$:
 \begin{equation}
 m_k = H(\text{TAG\_DEL} \,\|\, m_{k-1} \,\|\, \Canon(\text{DelegationBody}_k))
 \end{equation}
-where DelegationBody$_k$ contains the delegator's public key, the
-delegatee's identifier and public key, the attenuated sub-scope, a hop
-index, the parent session identifier, expiry, and a fresh nonce. The
-critical property is that $m_k$ commits to $m_{k-1}$ via the hash,
-recursively committing to the entire chain history.
+where DelegationBody$_k$ contains the delegator's identifier and public
+key (\texttt{delegator\_id}, \texttt{delegator\_pk}), the delegatee's
+identifier and public key (\texttt{delegatee\_id},
+\texttt{delegatee\_pk}), the attenuated sub-scope, a hop index, the
+parent session identifier, expiry, and a fresh nonce. The delegator's
+identifier is carried explicitly so that a verifier can resolve the
+signer's certificate from the body it is checking, rather than having
+to reach back into the preceding token. The critical property is that
+$m_k$ commits to $m_{k-1}$ via the hash, recursively committing to the
+entire chain history.
 
 \paragraph{Invocation message.}
 The final hop $A_N$ signs:
 \begin{equation}
 m_N = H(\text{TAG\_INV} \,\|\, m_{N-1} \,\|\, \Canon(\text{InvocationBody}))
 \end{equation}
-where InvocationBody contains the invoker's public key, the target tool
+where InvocationBody contains the invoker's identifier and public key
+(\texttt{invoker\_id}, \texttt{invoker\_pk}), the target tool
 and action identifiers, the canonically encoded parameter values, a
 hash of the parameters (defense-in-depth against encoding bugs), an
 optional approval receipt, and timing and nonce fields.
@@ -661,9 +691,12 @@ aggregate signature transmitted to the verifier is
 which has constant size 96 bytes regardless of $N$. The aggregate is
 accumulated along the chain: each participant receives the running
 aggregate from its predecessor, adds its own contribution, and forwards
-the sum. Individual $\sigma_k$ values are never transmitted on their
-own. \Cref{sec:security-assumptions} states this as an assumption,
-because \cref{thm:chain-integrity} relies on it.
+the sum. This does not keep the individual contributions secret --- an
+adversary on the network (\cref{sec:threat-adversary}) observes
+successive partial sums and recovers any $\sigma_k$ by subtraction ---
+and nothing in the security argument requires that it should.
+\Cref{thm:chain-integrity} rests on the digest recursion, not on the
+secrecy of the summands.
 
 \paragraph{Role distinguishability by position.}
 The verifier reconstructs the $m_k$ values from received token bodies
@@ -746,24 +779,38 @@ hash is fixed at session start and does not vary with where the agent
 sends its approval request, so an agent that routes to a different
 (perhaps more permissive) service still presents the correct hash. What
 it cannot present is a receipt from a service the policy requires. The
-verifier, having loaded the policy that the hash commits to, knows which
-services are required and rejects a chain whose receipts do not cover
-them. This is the defense against the approval routing attack
-(\threatref{4b}).
+verifier, having resolved the policy that the hash commits to, and
+having checked that every scope in the chain is contained in it
+(\cref{sec:policy}), obtains an approval requirement no weaker than the
+policy's own, and rejects a chain whose receipts do not cover it. This
+is the defense against the approval routing attack (\threatref{4b}).
 
 \subsection{Verification}
 \label{sec:protocol-verification}
 
 The verifier algorithm proceeds in phases, ordered to fail fast on
 cheap checks before performing expensive cryptographic operations.
-\Cref{alg:verify} states the procedure; the paragraphs that follow
-comment on individual phases. Every \textbf{reject} is terminal, and no
+\Cref{alg:verify,alg:verify2} state the procedure; the paragraphs that
+follow comment on individual phases. Every \textbf{reject} is terminal, and no
 state is mutated before the final step, so a chain that fails any check
 leaves the verifier exactly as it found it.
 
+Three abbreviations keep the statement short, all of them reading fields
+named in \cref{sec:protocol-digest}. Write $\mathrm{sid}(B_k)$ for the
+identifier of the party that signed $B_k$: \texttt{issuer\_id} for the
+session body, \texttt{delegator\_id} for a delegation body,
+\texttt{invoker\_id} for the invocation body. Write $\mathrm{spk}(B_k)$
+for that party's public key as named in the body --- \texttt{delegator\_pk}
+or \texttt{invoker\_pk}; the session body names its subject's key, not
+its issuer's, so $\mathrm{spk}(B_0)$ is undefined and $\pk_0$ comes from
+the resolved certificate alone. Write $\mathrm{scope}(B_k)$ for the
+body's scope expression: the granted scope for the session body, the
+attenuated sub-scope for a delegation body.
+
 \begin{algorithm}[!t]
-\caption{DelegationChain verification. Phases run cheapest-first; every
-\textbf{reject} is terminal.}
+\caption{DelegationChain verification, phases 1--5: structural,
+temporal, and identity checks. Phases run cheapest-first; every
+\textbf{reject} is terminal. Continued in \cref{alg:verify2}.}
 \label{alg:verify}
 \begin{algorithmic}[1]
 \Procedure{Verify}{received chain $C$, current time $t$}
@@ -785,28 +832,49 @@ leaves the verifier exactly as it found it.
            \Comment{expiry must not grow along the chain}
   \EndFor
   \LComment{Phase 3 --- replay}
-  \State \textbf{reject} if $(\pk_N, B_N.\text{nonce}) \in
+  \State \textbf{reject} if $(\mathrm{spk}(B_N), B_N.\text{nonce}) \in
          \textit{NonceCache}$
   \LComment{Phase 4 --- key chain consistency}
-  \For{$k \gets 1$ \textbf{to} $N$}
-    \State \textbf{reject} if $B_k.\text{delegator\_pk} \neq
-           B_{k-1}.\text{delegatee\_pk}$
+  \State \textbf{reject} if $B_0.\text{subject\_pk} \neq
+         \mathrm{spk}(B_1)$
+         \Comment{orchestrator signs the first hop}
+  \For{$k \gets 1$ \textbf{to} $N-1$}
+    \State \textbf{reject} if $B_k.\text{delegatee\_pk} \neq
+           \mathrm{spk}(B_{k+1})$
   \EndFor
   \LComment{Phase 5 --- identity resolution}
   \For{$k \gets 0$ \textbf{to} $N$}
-    \State $\mathit{cert}_k \gets \Call{Resolve}{B_k.\text{id}}$;
+    \State $\mathit{cert}_k \gets \Call{Resolve}{\mathrm{sid}(B_k)}$;
            \textbf{reject} if unresolvable
     \State \textbf{reject} if $\mathit{cert}_k$ is expired or revoked at
-           $t$, or binds a key other than $\pk_k$
+           $t$
+    \State $\pk_k \gets \mathit{cert}_k.\text{pk}$
+    \State \textbf{reject} if $k \ge 1$ and
+           $\pk_k \neq \mathrm{spk}(B_k)$
+           \Comment{body must name the certified key}
   \EndFor
+\algstore{dcverify}
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!t]
+\caption{DelegationChain verification, phases 6--8: policy, approvals,
+and the aggregate check. Continues \cref{alg:verify}; line numbering and
+the enclosing procedure carry over.}
+\label{alg:verify2}
+\begin{algorithmic}[1]
+\algrestore{dcverify}
   \LComment{Phase 6 --- policy}
   \State $S \gets \Call{LoadPolicy}{B_0.\text{policy\_hash}}$;
          \textbf{reject} if unavailable
+  \State \textbf{reject} if $\Call{Contains}{S, \mathrm{scope}(B_0)}$
+         is false
+         \Comment{session scope must lie within the published policy}
   \For{$k \gets 1$ \textbf{to} $N-1$}
-    \State \textbf{reject} if $\Call{Contains}{B_{k-1}.\text{scope},
-           B_k.\text{scope}}$ is false
+    \State \textbf{reject} if $\Call{Contains}{\mathrm{scope}(B_{k-1}),
+           \mathrm{scope}(B_k)}$ is false
   \EndFor
-  \State $d \gets \Call{Evaluate}{B_{N-1}.\text{scope},
+  \State $d \gets \Call{Evaluate}{\mathrm{scope}(B_{N-1}),
          B_N.\text{invocation}}$
   \State \textbf{reject} if $d = \textsc{deny}$
   \LComment{Phase 7 --- approvals}
@@ -863,13 +931,17 @@ hop's delegator key, and the last delegation's delegatee key equals the
 invoker's key.
 
 \paragraph{Scope monotonicity and policy compliance.}
-The verifier checks that the sub-scope at each hop is a subset of the
-scope at the prior hop, using the subset relation defined in
-\cref{sec:policy}. It also evaluates the invocation against the final
-scope, rejecting if the invocation falls outside the permitted scope.
-It checks that the session token's policy hash matches the policy the
-verifier has loaded, obtaining that policy by hash from the issuing
+The verifier resolves the policy that the session token's
+\texttt{policy\_hash} commits to, fetching it by hash from the issuing
 registry if it is not already cached (\cref{sec:identity-resolution}).
+It then establishes the containment chain \cref{eq:chain-containment}
+using the procedure of \cref{sec:policy-subset}: the session scope must
+lie within the resolved policy, and each hop's sub-scope within its
+parent's. Finally it evaluates the invocation against the innermost
+scope, rejecting if the invocation falls outside it. The first link is
+what ties the chain to a document the verifier resolved for itself,
+rather than to one the chain supplied; without it the policy hash would
+commit to something nothing consults.
 
 \paragraph{Approval verification.}
 If policy requires approvals, the verifier confirms that all required
@@ -947,7 +1019,8 @@ check is the only thing left to establish, and the work is warranted.
 \node[gray, font=\scriptsize, rotate=90, anchor=south]
   at (-4.4,-3.32) {increasing cost per check};
 \end{tikzpicture}
-\caption{Phase ordering in \cref{alg:verify}. Cheap checks run first, so
+\caption{Phase ordering in \cref{alg:verify,alg:verify2}. Cheap checks
+run first, so
 that a chain which cannot succeed is discarded before the verifier
 performs any pairing. No verifier state is modified until the final
 phase has passed.}
@@ -1089,10 +1162,12 @@ entry.
 
 \paragraph{Policy resolution.}
 The verifier must also hold the policy that a session token's
-\texttt{policy\_hash} commits to; \cref{sec:protocol-verification} reads
-it, \cref{sec:policy-subset} evaluates against it, and
-\cref{thm:approval-binding} depends on the verifier knowing which
-approval services it names. Since the policy is written by the sending
+\texttt{policy\_hash} commits to; \cref{sec:protocol-verification} checks the
+session scope against it using the containment relation of
+\cref{sec:policy-subset}, \cref{sec:policy-eval} then evaluates the
+invocation against the innermost scope, and
+\cref{thm:approval-binding} depends on the verifier holding the policy
+document rather than trusting the chain for it. Since the policy is written by the sending
 organization and enforced by the receiving one, it has to get across the
 boundary somehow, and the protocol should not leave this unsaid.
 
@@ -1195,11 +1270,50 @@ rotation, by construction, does.
 \label{sec:policy}
 
 This section introduces the policy expression language used to describe
-agent authorization scopes throughout DelegationChain. Policies are
-referenced by hash in session tokens (the \texttt{policy\_hash} field of
-\cref{sec:protocol-digest}) and govern what each agent is permitted to
-do, including what scope a delegating agent may transmit to a delegatee
-and which invocations a final agent may make.
+agent authorization scopes throughout DelegationChain. The language
+serves two roles, and separating them is worth doing at the outset,
+because the verifier treats them differently.
+
+A \emph{policy} is a scope expression published by an organization for
+its agents and committed to by the \texttt{policy\_hash} field of the
+session token (\cref{sec:protocol-digest}). It is a ceiling: the outer
+bound on what any agent operating under that session may do, fixed by
+the organization rather than by any agent, and resolved by the verifier
+from the registry by hash rather than read out of the chain
+(\cref{sec:identity-resolution}). A \emph{scope} is a scope expression
+carried inside a token --- the authority the issuer granted the
+orchestrator, in the session token, and the attenuated sub-scope each
+delegator passed on, in a delegation token.
+
+Both are drawn from the same grammar, and a single relation connects
+them. A chain is accepted only if
+\begin{equation}
+\label{eq:chain-containment}
+S \supseteq \mathrm{scope}(B_0) \supseteq \mathrm{scope}(B_1)
+  \supseteq \cdots \supseteq \mathrm{scope}(B_{N-1}),
+\end{equation}
+where $S$ is the resolved policy and $B_0, \ldots, B_{N-1}$ are the
+session and delegation bodies. Every link is checked by the containment
+procedure of \cref{sec:policy-subset}; the verifier then evaluates the
+invocation against $\mathrm{scope}(B_{N-1})$, the innermost scope.
+
+The first link is what makes the policy load-bearing rather than
+decorative. Without it, an issuer could grant a session scope exceeding
+the policy a verifier resolved, and the verifier would have no way to
+notice; \texttt{policy\_hash} would commit to a document that nothing
+consulted. The remaining links are the scope monotonicity property of
+\cref{sec:threat-properties}.
+
+One consequence carries the weight of \cref{thm:approval-binding}.
+\Cref{def:subset} requires a contained scope's approval requirement to
+be at least as restrictive as its container's, so approval requirements
+can only strengthen as one moves right along
+\cref{eq:chain-containment}. An approval requirement written into the
+policy therefore cannot be weakened by the issuer, nor by any agent
+further down the chain. This is what lets the verifier evaluate against
+$\mathrm{scope}(B_{N-1})$ --- data the agents wrote --- and still be
+certain the requirement it obtains is no weaker than the one the
+organization published.
 
 The design of the policy language is constrained by three requirements
 arising from its role in the protocol. First, the verifier must be able
@@ -1228,7 +1342,7 @@ while admitting straightforward decidability and termination analyses.
 The grammar of scope expressions, in Backus-Naur form:
 
 \begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
-scope    ::= rule | "allow" "all" | "deny" "all"
+scope    ::= rule+ | "allow" "all" | "deny" "all"
 rule     ::= "allow" tool action params? where? approval?
 tool     ::= "tool" "=" identifier
 action   ::= "action" "=" identifier
@@ -1608,12 +1722,6 @@ The security arguments below rest on the following assumptions:
     multi-pairing check accepts, unless the adversary has obtained
     valid individual signatures on each $m_i$ from the holder of
     $\sk_i$ \citep{boneh2018compact}.
-    \item[\textbf{Aggregate-only disclosure.}] Individual hop
-    signatures $\sigma_k$ are not disclosed outside the aggregate. Each
-    participant forwards only the running aggregate
-    (\cref{sec:protocol-digest}); no protocol message carries a bare
-    $\sigma_k$. The truncation argument of
-    \cref{thm:chain-integrity} depends on this.
     \item[\textbf{Collision resistance of SHA-256.}] SHA-256 is
     collision-resistant in the standard sense.
     \item[\textbf{Honest signing key custody.}] Signing keys remain in
@@ -1677,17 +1785,24 @@ probability.
 Modification of any body changes its canonical encoding, changing the
 corresponding $m_k$ (since $m_k$ hashes the body). Reordering changes
 the sequence of $m_k$ values (since $m_k$ commits to $m_{k-1}$).
-Truncation is resisted by a different argument. The verifier
-reconstructs its set of public keys and messages from the bodies it
-actually receives, so a truncated chain is checked against the
-truncated set rather than the original one; the adversary's task is
-therefore to supply an aggregate matching the shortened set. Removing
-hop $k$ requires exhibiting $\sigma_{\text{agg}} - \sigma_k$, which
-requires $\sigma_k$. By the aggregate-only disclosure assumption,
-$\sigma_k$ is never transmitted individually --- only folded into the
-running aggregate --- so an adversary that does not hold $\sk_k$ must
-produce it some other way, contradicting BLS unforgeability under
-$\pk_k$.
+Truncation is caught by the same recursion. Suppose the adversary drops
+$B_k$ for some interior $0 < k < N$. The verifier recomputes the
+remaining messages from the bodies it actually receives, so where
+$A_{k+1}$ signed
+$m_{k+1} = H(\text{TAG\_DEL} \,\|\, m_k \,\|\, \Canon(B_{k+1}))$ the
+verifier computes
+$m'_{k+1} = H(\text{TAG\_DEL} \,\|\, m_{k-1} \,\|\, \Canon(B_{k+1}))$.
+Since $m_k \neq m_{k-1}$ except with negligible probability under
+collision resistance, $m'_{k+1} \neq m_{k+1}$, and every subsequent
+message differs likewise. The adversary would need signatures under the
+surviving hops' keys on messages those hops never signed, which
+contradicts BLS aggregate security. Dropping the first or last hop is
+caught earlier still, by the position-determined tag check: a chain
+whose leading token is not a session token, or whose trailing token is
+not an invocation token, is rejected in phase 1 of \cref{alg:verify}.
+No assumption about the secrecy of individual $\sigma_k$ values is
+required, and we make none --- the accumulation scheme of
+\cref{sec:protocol-digest} would not support one.
 Extension requires producing a new $\sigma$ for the extension hop;
 under BLS aggregate security and proof-of-possession, this requires
 the secret key of the extending party. The position-determined tag
@@ -1749,15 +1864,25 @@ The approval body signed by the approval service includes
 \texttt{invocation\_digest}, a hash of the invocation body without the
 approval reference itself. Modification of the invocation changes
 this digest, invalidating the receipt under BLS unforgeability. The
-required approval service identifiers are committed to by the policy
-hash referenced in the session token, which the chain cannot forge.
-The verifier has loaded the policy that this hash commits to, and so
-knows which services an invocation requires. Routing the approval
-elsewhere does not disturb the policy hash --- it is fixed at session
-start and does not vary with the agent's routing choice --- so a
-misrouted chain arrives carrying the correct hash and the wrong
-receipt. The verifier rejects it because no receipt signed by a
-required service is present.
+required approval service identifiers are named by the policy $S$ that
+the session token's \texttt{policy\_hash} commits to. The verifier
+resolves $S$ from the registry by hash rather than reading it from the
+chain, and resolution is content-addressed
+(\cref{sec:identity-resolution}), so the chain can neither forge the
+hash nor substitute a different document for it.
+
+The requirement then propagates inward. Phase 6 of \cref{alg:verify2}
+establishes the containment chain \cref{eq:chain-containment}, and by
+the approval clause of \cref{def:subset} each containment can only
+strengthen the approval requirement. The requirement the verifier
+obtains by evaluating the invocation against $\mathrm{scope}(B_{N-1})$
+is therefore no weaker than the one $S$ imposes, even though the
+intermediate scopes were written by the agents themselves. Routing the
+approval elsewhere disturbs none of this: the policy hash is fixed at
+session start and does not vary with the agent's routing choice, so a
+misrouted chain arrives carrying the correct hash and the wrong receipt,
+and phase 7 of \cref{alg:verify2} rejects it because no receipt signed
+by a required service is present.
 \end{proof}
 
 \subsection{Threats Addressed}
@@ -1774,22 +1899,25 @@ escalation (\threatref{2b}) by Theorems \ref{thm:chain-integrity} and
 (\threatref{3a}) and intra-window replay (\threatref{3b}) are addressed
 by \cref{thm:replay}, under the single-logical-verifier hypothesis
 stated there; cross-context token reuse (\threatref{3c}) is addressed by
-domain separation tags (\cref{sec:protocol-digest}). The approval family
-(\threatref{4a}--\threatref{4d}) is addressed by
-\cref{thm:approval-binding} and the policy-hash binding, with the
-qualification that a compromised approval service (\threatref{4a}) is
-bounded rather than prevented once the key is in adversary hands:
-\cref{sec:protocol-approvals} decouples approval verification from the
-aggregate precisely so that such a compromise cannot extend to chain
-forgery, and detection is left to transparency log monitoring and
-rotation. The identity family
+domain separation tags (\cref{sec:protocol-digest}). The prevented part
+of the approval family (\threatref{4b}--\threatref{4d}) is addressed by
+\cref{thm:approval-binding} together with the policy containment chain
+of \cref{eq:chain-containment}; \threatref{4a} is bounded rather than
+prevented and is discussed below. The identity family
 (\threatref{5a}--\threatref{5d}) is addressed by proof-of-possession
 (\cref{sec:identity-pop}), short-lived certificates and revocation
 (\cref{sec:identity-revocation}), and optional transparency log
 integration.
 
-The sixth family (\cref{sec:threat-bounded}) is bounded, not prevented.
-\emph{Within-policy prompt injection} (\threatref{6a}) --- an adversary
+The threats of \cref{sec:threat-bounded} are bounded, not prevented.
+A \emph{compromised approval service} (\threatref{4a}) can issue
+receipts the human approver never authorized, and no check in
+\cref{alg:verify} can distinguish them from honest ones. The bound comes
+from the decoupling of \cref{sec:protocol-approvals}: because approval
+signatures are verified separately from the chain aggregate, the
+compromise cannot extend to chain forgery or scope escalation, and it
+reaches only those invocations that policy routes through the affected
+service. \emph{Within-policy prompt injection} (\threatref{6a}) --- an adversary
 inducing an agent to take an action that is within its permitted policy
 but contrary to the principal's intent --- is not prevented by the
 protocol. The protocol's contribution is to \emph{bound the blast
@@ -1882,9 +2010,10 @@ Ed25519 signatures and a JWT-like token format, with delegation
 attenuation expressed through scoped capability tokens. Our work
 differs from UCAN in several respects: we use BLS signatures
 specifically for their aggregation property, which UCAN does not
-provide; we specify a typed policy language with a formally
-characterized scope containment check, where UCAN's capability
-expressions are less rigorously defined; we target MCP rather than Web3 transport; and we include a
+provide; UCAN 1.0 does specify a policy language over command
+arguments, but we did not find a defined containment relation between
+capabilities, which is what \cref{sec:policy-subset} supplies and what
+the scope monotonicity check requires; we target MCP rather than Web3 transport; and we include a
 federated identity infrastructure with proof-of-possession and
 revocation semantics adapted to the short-lived-credential model.
 
@@ -2085,7 +2214,7 @@ Macaroons \citep{birgisson2014macaroons}
 UCAN \citep{ucan-spec}
   & \tyes & \tyes & \tno & \tyes
   & EdDSA / ECDSA & capability attenuation
-  & policy language, specified \\[2pt]
+  & policy language specified; no containment relation \\[2pt]
 SPKI/SDSI \citep{rfc2693}
   & \tyes & \tpart & \tno & \tyes
   & scheme-independent & 5-tuple reduction
@@ -2283,7 +2412,7 @@ migration to post-quantum signatures is appropriate even before the
 threat is acute. Investigating hybrid BLS-plus-post-quantum
 constructions adapted to the aggregation property is an open question.
 
-\emph{Cross-registry naming and discovery.} The current spec does not
+\emph{Cross-registry naming and discovery.} This paper does not
 address how organizations choose and namespace their
 \texttt{organization-id} values. In practice deployments will use
 DNS-style hierarchical naming or other conventions, but standardizing
@@ -2341,8 +2470,8 @@ deployments.
 
 We view this paper as a starting point. The design space for
 cross-organizational agent authorization is still being mapped, and
-multiple competing proposals --- AIP, AGENTBOUND, MCP-Guard, and
-others --- are appearing simultaneously with this work. We expect
+multiple competing proposals --- AIP and AgentBound among them ---
+are appearing simultaneously with this work. We expect
 useful integration and competition between these proposals over the
 next several years as the inter-agent ecosystem matures. Our
 contribution is one design point in this space, optimized for
