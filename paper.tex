@@ -1958,9 +1958,10 @@ second case $r'$ and $r_2$ both match $I$, so by the identity argument
 above they have identical declarations. They also agree on audience,
 tool and action, and $I$ satisfies both clauses, so those clauses are
 jointly satisfiable. Nor was $r'$ skipped. A skipping rule $r_2'$ would
-precede $r_2$ in $S_2$ with a clause implied by $r'$'s, so $I$, which
-matches $r'$, would match $r_2'$ too, contradicting the choice of $r_2$
-as the first rule of $S_2$ matching $I$. Step 3(b) therefore examined
+precede $r_2$ in $S_2$, agree with $r'$ on audience, tool, action and
+declaration, and have a clause implied by $r'$'s. So $I$, which matches
+$r'$, would match $r_2'$ too, contradicting the choice of $r_2$ as the
+first rule of $S_2$ matching $I$. Step 3(b) therefore examined
 $r'$, and its approval requirement is no stronger than $r_2$'s. Thus $I$ is
 accepted under $S_1$ with an approval requirement no stronger than the
 one $S_2$ imposes, which is \cref{def:subset}.
@@ -2027,7 +2028,16 @@ edit in place, and every partner whose verifiers accept the policy
 must pin the new hash before sessions under it will verify. We consider this the right default, since the
 failure mode is denial rather than unauthorized acceptance, but
 deployments whose tool schemas change often should expect policy churn
-in proportion.
+in proportion. The audience clause of \cref{sec:policy-eval} has the
+same kind of cost. Adding a verifier, such as a new region or a staging
+instance, means adding rules that name it. That is a new policy version,
+which every partner pinning the policy must re-pin, including partners
+the new verifier does not affect. This is the re-pinning that
+\cref{sec:protocol-approvals} avoids for approval services by naming
+them by identifier. For audiences we accept it, since which verifiers a
+policy authorizes is part of what the partners agreed to. An
+organization can confine the churn by publishing a separate policy for
+each partner.
 
 These limitations are deliberate. A more expressive language would
 provide more flexibility but at the cost of guarantees we consider
@@ -2992,12 +3002,21 @@ was undertaken.
 \section*{Use of AI Tools}
 \label{sec:ai-tools}
 
-The author used a large language model (Anthropic Claude) in preparing
-this manuscript: to organize and draft text, formalize the policy
-language grammar, and prepare initial proof sketches. The protocol design, threat
-model, and research decisions are the author's own. The model's outputs
-were reviewed by the author, who takes full responsibility for the
-content, accuracy, and conclusions of this work.
+The author used a large language model (Anthropic Claude) extensively in
+preparing this manuscript: to draft and organize text, formalize the
+policy language grammar, and prepare proof sketches. The model was also
+used as a critical reviewer across several revision passes, in which it
+identified technical and citation errors and proposed corrections,
+alongside review comments the author obtained from other sources. Some
+of the resulting corrections were adopted substantially as proposed,
+including the skip condition of the containment procedure
+(\cref{sec:policy-subset}) and the policy audience clause
+(\cref{sec:policy-eval}), and the model carried out the edits under the
+author's direction. All choices among design alternatives, and the
+threat model, are the author's. References were verified against
+original sources with the model's assistance, including whether each
+supports the specific claim it is cited for. The author takes full
+responsibility for the content, accuracy, and conclusions of this work.
 
 \printbibliography
 
