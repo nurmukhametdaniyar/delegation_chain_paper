@@ -83,8 +83,9 @@ verification with shared secrets, which does not extend cleanly across
 organizations that do not share infrastructure. SPIFFE \citep{spiffe} provides
 workload identity within a trust domain but does not include parameter binding
 or delegation chains. UCAN \citep{ucan-spec} extends capability delegation to
-public-key settings but is designed for Web3 contexts and does not address
-MCP integration, BLS aggregation, or policy language formalization. Recent
+public-key settings and, in version 1.0, specifies a policy language over
+command arguments, but it defines no containment relation between
+capabilities and does not address MCP integration or BLS aggregation. Recent
 MCP-specific proposals such as AgentBound \citep{buhler2026agentbound}
 provide single-organization runtime enforcement, and measurement work
 \citep{zhou2026mcpauth, maloyan2026breaking} establishes the size of the
@@ -271,8 +272,9 @@ collection step on the request path.
 UCAN \citep{ucan-spec} extends capability attenuation to public-key
 settings using ECDSA or Ed25519 signatures and a JWT-like token format.
 UCAN is designed for Web3 contexts and lacks features specific to our
-setting, including signature aggregation, formal policy language
-specification, and MCP transport binding.
+setting: signature aggregation, a containment relation between
+capabilities (UCAN 1.0 does specify a policy language over command
+arguments), and MCP transport binding.
 
 DelegationChain inherits the conceptual framework of attenuated
 capabilities from this tradition. Our contribution is the combination of
@@ -492,8 +494,10 @@ formally stated and argued in \cref{sec:security}:
     \item[Chain integrity.] The aggregate signature over a delegation
     chain covers the entire chain content; modification, reordering,
     truncation, or extension of the chain invalidates the aggregate.
-    \item[Scope monotonicity.] In any valid chain, the scope at hop
-    $k+1$ is a subset of the scope at hop $k$.
+    \item[Scope monotonicity.] In any valid chain, the session scope is
+    contained in a policy the verifier has pinned for the issuing
+    organization, and the scope at hop $k+1$ is contained in the scope
+    at hop $k$.
     \item[Non-repudiation.] Neither party to a verified action can
     plausibly deny it, assuming honest signing key management.
     \item[Bounded revocation propagation.] Once a registry has issued a
@@ -702,10 +706,16 @@ secrecy of the summands.
 The verifier reconstructs the $m_k$ values from received token bodies
 using the tag determined by token position: \texttt{TAG\_SES} for the
 session token, \texttt{TAG\_DEL} for each intermediate delegation
-token, and \texttt{TAG\_INV} for the invocation token. The verifier
-\emph{rejects} chains where the position-derived tag does not match
-the token kind --- preventing chain-extension attacks that would attempt
-to reuse an invocation token as a delegation, or vice versa.
+token, and \texttt{TAG\_INV} for the invocation token. Every body also
+carries an explicit \texttt{kind} field, with value \texttt{session},
+\texttt{delegation}, or \texttt{invocation}, inside its signed encoding.
+The verifier \emph{rejects} chains where the position-derived tag does
+not match a body's \texttt{kind} --- preventing chain-extension attacks
+that would attempt to reuse an invocation token as a delegation, or vice
+versa. Such a body would fail the aggregate check in any case, since the
+verifier would hash it under a tag it was not signed with. The explicit
+field lets the verifier reject it in phase 1, before any pairing, and
+removes any ambiguity about how a body is to be parsed.
 
 \subsection{Parameter Binding}
 \label{sec:protocol-params}
@@ -805,7 +815,11 @@ or \texttt{invoker\_pk}; the session body names its subject's key, not
 its issuer's, so $\mathrm{spk}(B_0)$ is undefined and $\pk_0$ comes from
 the resolved certificate alone. Write $\mathrm{scope}(B_k)$ for the
 body's scope expression: the granted scope for the session body, the
-attenuated sub-scope for a delegation body.
+attenuated sub-scope for a delegation body. Finally, $\mathrm{org}(x)$ is
+the \texttt{organization-id} prefix of an identifier $x$
+(\cref{sec:identity-registration}), and $\mathit{Pinned}[o]$ is the set
+of policy hashes the verifier has accepted from organization $o$
+(\cref{sec:policy}).
 
 \begin{algorithm}[!t]
 \caption{DelegationChain verification, phases 1--5: structural,
@@ -822,8 +836,8 @@ temporal, and identity checks. Phases run cheapest-first; every
     \State \textbf{reject} if $\Canon(B_k) \neq$ received bytes of $B_k$
            \Comment{non-canonical encoding}
   \EndFor
-  \State \textbf{reject} if any token's kind disagrees with the tag its
-         position implies
+  \State \textbf{reject} if any $B_k.\text{kind}$ disagrees with the tag
+         its position implies
   \LComment{Phase 2 --- temporal}
   \State \textbf{reject} if $t \notin [\,B_N.\text{nbf},\,
          B_N.\text{exp}\,]$
@@ -865,11 +879,14 @@ the enclosing procedure carry over.}
 \begin{algorithmic}[1]
 \algrestore{dcverify}
   \LComment{Phase 6 --- policy}
+  \State \textbf{reject} if $B_0.\text{policy\_hash} \notin
+         \mathit{Pinned}[\mathrm{org}(\mathrm{sid}(B_0))]$
+         \Comment{verifier's own choice}
   \State $S \gets \Call{LoadPolicy}{B_0.\text{policy\_hash}}$;
          \textbf{reject} if unavailable
   \State \textbf{reject} if $\Call{Contains}{S, \mathrm{scope}(B_0)}$
          is false
-         \Comment{session scope must lie within the published policy}
+         \Comment{the ceiling}
   \For{$k \gets 1$ \textbf{to} $N-1$}
     \State \textbf{reject} if $\Call{Contains}{\mathrm{scope}(B_{k-1}),
            \mathrm{scope}(B_k)}$ is false
@@ -924,24 +941,28 @@ verification path, and \cref{thm:replay} is stated with it as an
 explicit hypothesis.
 
 \paragraph{Public key chain consistency.}
-The verifier checks that the public key fields across consecutive
-tokens agree: the session token's agent key equals the first delegation
-token's delegator key, each delegation's delegatee key equals the next
-hop's delegator key, and the last delegation's delegatee key equals the
-invoker's key.
+The verifier checks that each body is signed by the party its
+predecessor named. The session body's subject key must equal the signer
+key of $B_1$, and each delegation body's delegatee key must equal the
+signer key of the body that follows it. The signer key of a delegation
+body is its delegator key, and that of the invocation body is its
+invoker key, so the rule also covers the shortest chain: when $N = 1$
+there are no delegations, and the orchestrator named in the session is
+itself the invoker.
 
 \paragraph{Scope monotonicity and policy compliance.}
-The verifier resolves the policy that the session token's
-\texttt{policy\_hash} commits to, fetching it by hash from the issuing
-registry if it is not already cached (\cref{sec:identity-resolution}).
-It then establishes the containment chain \cref{eq:chain-containment}
-using the procedure of \cref{sec:policy-subset}: the session scope must
-lie within the resolved policy, and each hop's sub-scope within its
-parent's. Finally it evaluates the invocation against the innermost
-scope, rejecting if the invocation falls outside it. The first link is
-what ties the chain to a document the verifier resolved for itself,
-rather than to one the chain supplied; without it the policy hash would
-commit to something nothing consults.
+The verifier first confirms that the session token's
+\texttt{policy\_hash} is one it has pinned for the issuing organization
+(\cref{sec:policy}). It then obtains the policy document, from its cache
+or by hash from the issuing registry (\cref{sec:identity-resolution}),
+and establishes the containment chain \cref{eq:chain-containment} using
+the procedure of \cref{sec:policy-subset}: the session scope must lie
+within the policy, and each hop's sub-scope within its parent's. Finally
+it evaluates the invocation against the innermost scope, rejecting if
+the invocation falls outside it. The pinning check is what gives the
+first link its force. The issuer signs both the policy hash and the
+session scope, so without pinning the verifier would be checking the
+issuer against a policy the issuer had selected.
 
 \paragraph{Approval verification.}
 If policy requires approvals, the verifier confirms that all required
@@ -1091,7 +1112,10 @@ inheriting the trust-concentration concerns of Web PKI.
 
 These mechanisms are not mutually exclusive. A production deployment
 may use direct peering with frequent partners and a federated log for
-the long tail.
+the long tail. Whatever the mechanism, the peering relationship is also
+where the receiving organization fixes which of its partner's policies
+it will honor. Its verifiers pin those policy hashes and reject
+sessions naming any other (\cref{sec:policy}).
 
 \subsection{Identifiers and Registration}
 \label{sec:identity-registration}
@@ -1166,8 +1190,8 @@ The verifier must also hold the policy that a session token's
 session scope against it using the containment relation of
 \cref{sec:policy-subset}, \cref{sec:policy-eval} then evaluates the
 invocation against the innermost scope, and
-\cref{thm:approval-binding} depends on the verifier holding the policy
-document rather than trusting the chain for it. Since the policy is written by the sending
+\cref{thm:approval-binding} depends on that policy being one the
+verifier accepted, not one the chain selected. Since the policy is written by the sending
 organization and enforced by the receiving one, it has to get across the
 boundary somehow, and the protocol should not leave this unsaid.
 
@@ -1182,10 +1206,13 @@ under their hash, so a document once fetched is cached for as long as
 the verifier keeps it; a policy change produces a new hash and, hence, a
 new session token rather than a silent change under an existing one.
 
-The honest consequence is that the first verification against an unseen
-policy requires a fetch. Verification is offline in the steady state
-and, on that first call, is not; \cref{sec:limitations} discusses what
-this costs the offline-verification claim.
+Pinning (\cref{sec:policy}) keeps this fetch off the request path.
+Because a verifier accepts only hashes it has pinned, it knows every
+hash it will need before any chain names one, and it can fetch and check
+the documents when it pins them. A hash it has not pinned is rejected
+without any fetch. A verifier that defers fetching to first use pays one
+round trip on that call; \cref{sec:limitations} discusses what the
+remaining dependencies cost the offline-verification claim.
 
 \subsection{Key Rotation}
 \label{sec:identity-rotation}
@@ -1278,9 +1305,10 @@ A \emph{policy} is a scope expression published by an organization for
 its agents and committed to by the \texttt{policy\_hash} field of the
 session token (\cref{sec:protocol-digest}). It is a ceiling: the outer
 bound on what any agent operating under that session may do, fixed by
-the organization rather than by any agent, and resolved by the verifier
-from the registry by hash rather than read out of the chain
-(\cref{sec:identity-resolution}). A \emph{scope} is a scope expression
+the organizations involved rather than by any agent. The session names
+which policy applies; the verifier decides which policies it will
+accept at all, as described below, and resolves the document from the
+registry by hash (\cref{sec:identity-resolution}). A \emph{scope} is a scope expression
 carried inside a token --- the authority the issuer granted the
 orchestrator, in the session token, and the attenuated sub-scope each
 delegator passed on, in a delegation token.
@@ -1297,12 +1325,31 @@ session and delegation bodies. Every link is checked by the containment
 procedure of \cref{sec:policy-subset}; the verifier then evaluates the
 invocation against $\mathrm{scope}(B_{N-1})$, the innermost scope.
 
-The first link is what makes the policy load-bearing rather than
-decorative. Without it, an issuer could grant a session scope exceeding
-the policy a verifier resolved, and the verifier would have no way to
-notice; \texttt{policy\_hash} would commit to a document that nothing
-consulted. The remaining links are the scope monotonicity property of
-\cref{sec:threat-properties}.
+The first link needs care, because the issuer signs both
+\texttt{policy\_hash} and $\mathrm{scope}(B_0)$ in the same body. If the
+verifier accepted whatever hash a session named, the check would compare
+the issuer against a policy the issuer had chosen. Content addressing
+prevents a different document from being substituted behind a hash, but
+it does nothing about which hash is selected. The verifier therefore
+accepts only policies it has \emph{pinned} for the issuing organization:
+a set of policy hashes fixed in its own configuration, or in the peering
+agreement with that partner (\cref{sec:identity-federated}). A session
+naming any other hash is rejected. The ceiling $S$ is then drawn from a
+set the receiving organization agreed to, and the issuer can do no more
+than choose among policies the verifier has already accepted.
+
+Pinning also closes a gap the protocol would otherwise leave: the
+receiving organization had no way to state its own terms, only to
+enforce the sending organization's. A pinned policy may be one the
+sending organization published and the receiving organization reviewed,
+or one the two wrote together for the relationship. Either way, it is
+never one the receiving organization has not seen. What pinning does not
+defend against is the verifier's own configuration. We treat the pinned
+set as part of the verifier's trust base (\cref{sec:security-assumptions}).
+
+With pinning in place, every link of \cref{eq:chain-containment} belongs
+to the scope monotonicity property of \cref{sec:threat-properties}, and
+\cref{thm:scope-monotonicity} states it for the whole chain.
 
 One consequence carries the weight of \cref{thm:approval-binding}.
 \Cref{def:subset} requires a contained scope's approval requirement to
@@ -1312,8 +1359,8 @@ can only strengthen as one moves right along
 policy therefore cannot be weakened by the issuer, nor by any agent
 further down the chain. This is what lets the verifier evaluate against
 $\mathrm{scope}(B_{N-1})$ --- data the agents wrote --- and still be
-certain the requirement it obtains is no weaker than the one the
-organization published.
+certain the requirement it obtains is no weaker than the one in a
+policy it has itself accepted.
 
 The design of the policy language is constrained by three requirements
 arising from its role in the protocol. First, the verifier must be able
@@ -1676,8 +1723,8 @@ updated to declare the new parameter before any invocation may supply
 it, and until the updated policy has propagated, invocations carrying
 the new parameter are denied. Because policies are committed to by hash
 in session tokens, that update is a policy version change rather than an
-edit in place, and it has to be coordinated with the partners whose
-verifiers load the policy. We consider this the right default, since the
+edit in place, and every partner whose verifiers accept the policy
+must pin the new hash before sessions under it will verify. We consider this the right default, since the
 failure mode is denial rather than unauthorized acceptance, but
 deployments whose tool schemas change often should expect policy churn
 in proportion.
@@ -1734,6 +1781,12 @@ The security arguments below rest on the following assumptions:
     formal arguments below assume an honest root, with the implication
     that root compromise reduces security to a recovery problem rather
     than a forgery problem.
+    \item[\textbf{Verifier configuration integrity.}] The set of policy
+    hashes a verifier has pinned for each partner reflects its own
+    organization's decisions and cannot be written by the adversary.
+    The first link of \cref{eq:chain-containment}, and through it
+    \cref{thm:scope-monotonicity,thm:approval-binding}, is only as good
+    as that configuration.
 \end{description}
 
 \subsection{Theorems}
@@ -1813,23 +1866,31 @@ extension.
 
 \begin{theorem}[Scope monotonicity]
 \label{thm:scope-monotonicity}
-In any chain accepted by the verifier, the scope at hop $k+1$ is a
-subset of the scope at hop $k$, in the sense of
-\cref{def:subset}.
+In any chain accepted by the verifier, every link of the containment
+chain \cref{eq:chain-containment} holds in the sense of
+\cref{def:subset}, where $S$ is a policy the verifier has pinned for the
+issuing organization. In particular, the session scope is contained in
+$S$, and the scope at hop $k+1$ is contained in the scope at hop $k$.
 \end{theorem}
 
 \begin{proof}[Proof sketch]
-The verifier checks $\text{sub\_scope}_{k+1} \subseteq
-\text{scope}_k$ explicitly (\cref{sec:protocol-verification}) using
-the containment procedure of \cref{sec:policy-subset}. Acceptance of the
-chain implies that procedure returned true, and by the soundness half of
+Phase 6 of \cref{alg:verify2} rejects any session whose policy hash is
+not pinned for the issuing organization. It then resolves $S$ by content
+address, so by collision resistance of SHA-256 $S$ is the document the
+pinned hash names. Finally it checks each link of
+\cref{eq:chain-containment} explicitly, using the containment procedure
+of \cref{sec:policy-subset}. Acceptance of the chain implies that every
+one of these checks returned true, and by the soundness half of
 \cref{prop:decidability} that implies containment in the sense of
 \cref{def:subset}. The converse does not hold: by
 \cref{rem:incompleteness} the verifier will also reject some chains
 whose scopes are genuinely nested, so the guarantee is that accepted
 chains are monotone, not that all monotone chains are accepted.
-The integrity of the body content from which sub-scopes are read is
-guaranteed by \cref{thm:chain-integrity}.
+The integrity of the body content from which the policy hash and the
+scopes are read is guaranteed by \cref{thm:chain-integrity}. The
+first link is only as strong as the verifier's pinned set, which is an
+assumption (\cref{sec:security-assumptions}) and not something the
+protocol establishes.
 \end{proof}
 
 \begin{theorem}[Replay resistance]
@@ -1864,17 +1925,18 @@ The approval body signed by the approval service includes
 \texttt{invocation\_digest}, a hash of the invocation body without the
 approval reference itself. Modification of the invocation changes
 this digest, invalidating the receipt under BLS unforgeability. The
-required approval service identifiers are named by the policy $S$ that
-the session token's \texttt{policy\_hash} commits to. The verifier
-resolves $S$ from the registry by hash rather than reading it from the
-chain, and resolution is content-addressed
-(\cref{sec:identity-resolution}), so the chain can neither forge the
-hash nor substitute a different document for it.
+required approval service identifiers are named by the policy $S$. The
+session names $S$ by hash, but the verifier accepts the hash only if it
+has pinned it for the issuing organization. $S$ is therefore a policy
+the receiving organization agreed to, not one the issuer was free to
+choose. Resolution is content-addressed (\cref{sec:identity-resolution}),
+so no other document can be substituted behind the hash.
 
-The requirement then propagates inward. Phase 6 of \cref{alg:verify2}
-establishes the containment chain \cref{eq:chain-containment}, and by
-the approval clause of \cref{def:subset} each containment can only
-strengthen the approval requirement. The requirement the verifier
+The requirement then propagates inward. By
+\cref{thm:scope-monotonicity}, every link of the containment chain
+\cref{eq:chain-containment} holds, and by the approval clause of
+\cref{def:subset} each containment can only strengthen the approval
+requirement. The requirement the verifier
 obtains by evaluating the invocation against $\mathrm{scope}(B_{N-1})$
 is therefore no weaker than the one $S$ imposes, even though the
 intermediate scopes were written by the agents themselves. Routing the
@@ -1907,12 +1969,14 @@ prevented and is discussed below. The identity family
 (\threatref{5a}--\threatref{5d}) is addressed by proof-of-possession
 (\cref{sec:identity-pop}), short-lived certificates and revocation
 (\cref{sec:identity-revocation}), and optional transparency log
-integration.
+integration. Pinning adds an informal bound outside the honest-root
+assumption: an issuer whose keys have been compromised can still grant
+sessions only within policies the verifier has pinned.
 
 The threats of \cref{sec:threat-bounded} are bounded, not prevented.
 A \emph{compromised approval service} (\threatref{4a}) can issue
 receipts the human approver never authorized, and no check in
-\cref{alg:verify} can distinguish them from honest ones. The bound comes
+\cref{alg:verify,alg:verify2} can distinguish them from honest ones. The bound comes
 from the decoupling of \cref{sec:protocol-approvals}: because approval
 signatures are verified separately from the chain aggregate, the
 compromise cannot extend to chain forgery or scope escalation, and it
@@ -2283,8 +2347,9 @@ We claim verification that requires no synchronous call to the issuing
 authority \emph{on the dominant path}, and the qualification is load
 bearing. Three dependencies remain. Certificate resolution
 (\cref{sec:identity-resolution}) queries the issuing registry on a cache
-miss. Policy resolution does the same for a policy hash the verifier has
-not seen. Revocation (\cref{sec:identity-revocation}) requires polling,
+miss. Policy resolution need not: pinned policies can be fetched when
+they are pinned (\cref{sec:identity-resolution}), though a verifier that
+defers the fetch to first use pays a round trip then. Revocation (\cref{sec:identity-revocation}) requires polling,
 push, or log monitoring, which is a continuous background dependency
 rather than a per-request one. In the steady state --- a partner whose
 certificates and policies are already cached --- verification touches
@@ -2501,15 +2566,25 @@ sketches for the security theorems. The model also served as a
 critical reader, identifying issues such as overstated claims about
 verification complexity that were subsequently corrected.
 
-A subsequent revision pass, correcting technical and statement-level
-errors identified in review of the first draft, was also carried out
-with model assistance, working from a written list of defects supplied
-by the author. That pass revised the revocation, policy-evaluation, and
+Three subsequent revision passes were also carried out with model
+assistance, each working from written review comments supplied by the
+author. The first corrected technical and statement-level errors in the
+first draft. It revised the revocation, policy-evaluation, and
 subset-relation material of \cref{sec:identity-revocation},
 \cref{sec:policy-eval}, and \cref{sec:policy-subset}; corrected several
 proof sketches in \cref{sec:security}; and re-ran the bibliography
-verification described below. The design decisions it implemented were
-made by the author.
+verification described below. The second and third passes changed the
+protocol itself. They made the policy a ceiling against which the
+session scope is checked, and required verifiers to pin the policies
+they accept (\cref{sec:policy,sec:identity-resolution}). They also split
+the verifier into \cref{alg:verify,alg:verify2} and aligned it with the
+token fields of \cref{sec:protocol-digest}, including a new
+\texttt{kind} field. Finally, they rewrote the proofs of
+\cref{thm:chain-integrity,thm:scope-monotonicity,thm:approval-binding},
+added the verifier-configuration assumption of
+\cref{sec:security-assumptions}, and reclassified the approval-service
+threat in \cref{sec:threat-scope}. The design choices in all three
+passes were made or approved by the author.
 
 The protocol design, threat model, and all underlying research
 decisions are the author's own. All technical claims have been
