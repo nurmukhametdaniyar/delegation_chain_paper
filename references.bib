@@ -1,6 +1,7 @@
 % ============================================================
 % DelegationChain paper — references
-% Last verified: 2026-09-27
+% Last verified: 2026-09-27 (llambi2026cva and the RFC Editor status of
+% oauth-identity-chaining rechecked the same day, later pass)
 % Every entry checked against an original source (publisher or
 % Crossref record, RFC Editor info page, IETF Datatracker, arXiv
 % listing, or the specification's own repository). From the
@@ -107,6 +108,7 @@
 
 % Specifies the BLS12-381 CURVE PARAMETERS. Cited separately from
 % ietf-bls-signature, which specifies the signature scheme only.
+% Sakemi is listed as editor on the draft.
 @misc{ietf-pairing-curves,
   author       = {Yumi Sakemi and Satoru Kanno and Riad S. Wahby},
   title        = {Pairing-Friendly Curves},
@@ -115,7 +117,7 @@
   month        = sep,
   publisher    = {IRTF Crypto Forum Research Group},
   url          = {https://datatracker.ietf.org/doc/draft-irtf-cfrg-pairing-friendly-curves/14/},
-  note         = {Work in progress. Sakemi is listed as editor.},
+  note         = {Work in progress.},
 }
 
 @inproceedings{lmrs2004seqagg,
@@ -215,6 +217,8 @@
   note         = {Work in progress.},
 }
 
+% In the RFC Editor queue as of 2026-09-27, no RFC number yet; recheck
+% immediately before posting.
 @misc{oauth-identity-chaining,
   author       = {Arndt Schwenkschuster and Pieter Kasselman and
                   Kelley Burgin and Michael J. Jenkins and
@@ -252,6 +256,8 @@
   month   = may,
 }
 
+% Release date not stated in the specification; cited as Version 1.0.0
+% as of 2026-09-27.
 @misc{ucan-spec,
   author       = {{UCAN Working Group}},
   title        = {{User Controlled Authorization Networks (UCAN)}
@@ -259,21 +265,17 @@
   howpublished = {Version 1.0.0},
   year         = {2026},
   url          = {https://github.com/ucan-wg/spec},
-  note         = {Release date not stated in the specification; cited
-                  as Version 1.0.0 as of 2026-09-27.},
 }
 
+% Versioned by Datalog language version rather than by dated release;
+% 3.3 is the highest version in SPECIFICATIONS.md as of 2026-09-27.
 @misc{biscuit-spec,
   author       = {{Eclipse Biscuit Project}},
   title        = {Biscuit Authorization Token Specification},
   howpublished = {Specification 3.x, Datalog version 3.3},
   year         = {2026},
   url          = {https://github.com/eclipse-biscuit/biscuit},
-  note         = {Originally developed at Clever Cloud; now an Eclipse
-                  Foundation project. The specification is versioned by
-                  Datalog language version rather than by dated
-                  release; 3.3 is the highest version defined in
-                  SPECIFICATIONS.md as of 2026-08-30.},
+  note         = {Originally developed at Clever Cloud; now an Eclipse Foundation project.},
 }
 
 @phdthesis{bauer2003pca,
@@ -297,6 +299,9 @@
   doi       = {10.1145/319709.319718},
 }
 
+% Editors and version taken from the ReSpec configuration of the source
+% (w3c-ccg/zcap-spec, index.html), fetched 2026-08-30 and 2026-09-27; the
+% rendered page does not show them. Document undated; cited as of 2026-09-27.
 @misc{zcapld,
   author       = {Christine Lemmer-Webber and Dmitri Zagidulin and
                   Manu Sporny and Benjamin Goering},
@@ -305,14 +310,12 @@
                   v0.4.0-rc.6},
   year         = {2026},
   url          = {https://w3c-ccg.github.io/zcap-spec/},
-  note         = {Commonly referred to as ZCAP-LD. Editors and version
-                  taken from the specification's ReSpec configuration.
-                  The document carries no publication date; cited as
-                  of 2026-09-27.},
+  note         = {Commonly referred to as ZCAP-LD.},
 }
 
 % --- Workload identity ---
 
+% Documents referenced here were marked Stable as of 2026-09-27.
 @misc{spiffe,
   author       = {{SPIFFE Project}},
   title        = {The {SPIFFE} Specifications},
@@ -320,15 +323,13 @@
   year         = {2026},
   publisher    = {Cloud Native Computing Foundation},
   url          = {https://github.com/spiffe/spiffe/tree/main/standards},
-  note         = {The SPIFFE standards (SPIFFE-ID, X509-SVID,
-                  JWT-SVID, Workload API, Federation) are not issued as
-                  numbered releases; each document carries a stability
-                  designation instead. Cited as of 2026-08-30, when the
-                  documents referenced here were marked Stable.},
+  note         = {The SPIFFE standards carry stability designations rather than release numbers.},
 }
 
 % --- Model Context Protocol and MCP security ---
 
+% Revisions are identified by date; 2026-07-28 is the current revision
+% as of 2026-09-27 and is cited throughout.
 @misc{anthropic-mcp,
   author       = {{Model Context Protocol Project}},
   title        = {Model Context Protocol Specification},
@@ -336,12 +337,7 @@
   year         = {2026},
   month        = jul,
   url          = {https://modelcontextprotocol.io/specification/2026-07-28},
-  note         = {Introduced by Anthropic in November 2024 and
-                  contributed to the Agentic AI Foundation, a directed
-                  fund of the Linux Foundation, in December 2025.
-                  Revisions are identified by date; 2026-07-28 is the
-                  current revision as of 2026-09-27 and is cited
-                  throughout.},
+  note         = {Introduced by Anthropic in November 2024; stewarded since December 2025 by the Agentic AI Foundation, a directed fund of the Linux Foundation.},
 }
 
 @article{zhou2026mcpauth,
@@ -355,6 +351,11 @@
   url     = {https://arxiv.org/abs/2605.22333},
 }
 
+% Record checked against Crossref (volume, issue, pages, date, DOI). The
+% article number reported as FSE096 is absent from the Crossref record and
+% the ACM page could not be fetched, so it is not included. The arXiv v1
+% title, "Securing AI Agent Execution", differs from the published title.
+% Preprint: arXiv:2510.21236.
 @article{buhler2026agentbound,
   author  = {Christoph B{\"u}hler and Matteo Biagiola and
              Luca Di Grazia and Guido Salvaneschi},
@@ -367,9 +368,6 @@
   year    = {2026},
   month   = jun,
   doi     = {10.1145/3808103},
-  note    = {FSE 2026. Preprint: arXiv:2510.21236, whose v1 title,
-             ``Securing AI Agent Execution'', differs from the
-             published title. Record checked against Crossref.},
 }
 
 @article{maloyan2026breaking,
@@ -405,18 +403,19 @@
   url     = {https://arxiv.org/abs/2609.02690},
 }
 
-% Author names appear on arXiv with initials only.
+% Version of record, checked against Crossref and the publisher's page
+% (published 2026-09-24); arXiv:2607.21325 v3 asks readers to cite it.
+% The publisher's title reads "proof of concept", unhyphenated.
 @article{llambi2026cva,
-  author  = {M. Llamb{\'\i}-Morillas and D. Fern{\'a}ndez-Fern{\'a}ndez},
+  author  = {Mar Llamb{\'\i}-Morillas and Daniel Fern{\'a}ndez-Fern{\'a}ndez},
   title   = {Cryptographically Verifiable Authorization for Autonomous
              {AI} Agents: A Falsifiable Hypothesis and Proof of Concept},
-  journal = {arXiv preprint arXiv:2607.21325},
+  journal = {Frontiers in Computer Science},
+  volume  = {8},
+  eid     = {1966725},
   year    = {2026},
-  month   = jul,
-  url     = {https://arxiv.org/abs/2607.21325},
-  note    = {The arXiv listing gives a journal reference, Frontiers in
-             Computer Science 8:1966725 (2026), which has not been
-             checked against the publisher.},
+  month   = sep,
+  doi     = {10.3389/fcomp.2026.1966725},
 }
 
 @article{zhouz2026governing,

@@ -631,9 +631,13 @@ does not require the signers to be distinct ---
 the aggregate $\sigma_{\text{agg}} = \sum_i \sigma_i \in \G{2}$ is
 verified by a multi-pairing check (\cref{sec:protocol-verification}).
 
-Chain signatures use the basic scheme of the CFRG draft, ciphersuite
+Chain signatures use the basic scheme of the CFRG draft
+\citep{ietf-bls-signature}, whose ciphersuite identifier is
+\begin{center}
 \texttt{BLS\_SIG\_BLS12381G2\_XMD:SHA-256\_SSWU\_RO\_NUL\_}
-\citep{ietf-bls-signature}. Its aggregate verification rejects any
+\end{center}
+(the final \texttt{NUL} marks the basic scheme). Its aggregate
+verification rejects any
 aggregate in which two messages are equal, and its security for
 distinct messages is that of \citet{bgls2003aggregate}, which does not
 depend on how keys were registered. All participants also register their
@@ -692,8 +696,9 @@ verifier the invocation is addressed to (\texttt{aud}, a
 \texttt{service} identifier; \cref{sec:identity-registration}), the
 target tool
 and action identifiers, the canonically encoded parameter values, a
-hash of the parameters (defense-in-depth against encoding bugs), an
-optional approval receipt, and timing and nonce fields.
+hash of the parameters (defense-in-depth against encoding bugs), one
+approval receipt for each approval service the policy requires (possibly
+none; \cref{sec:protocol-approvals}), and timing and nonce fields.
 
 \Cref{fig:chain} shows the construction as a whole.
 
@@ -828,8 +833,8 @@ as defense-in-depth against subtle encoding bugs in implementations.
 \label{sec:protocol-approvals}
 
 When policy requires human approval for an action, the InvocationBody
-carries an \emph{approval receipt} signed by a registered approval
-service. The receipt binds the human's approval decision to the
+carries an \emph{approval receipt} from each approval service the
+policy requires, signed by that registered service. The receipt binds the human's approval decision to the
 specific invocation being approved.
 
 The flow is as follows. The agent constructs the InvocationBody
@@ -844,7 +849,11 @@ timestamps (\texttt{iat}, \texttt{exp}). The signed receipt is returned to the
 agent, which embeds it in the now-complete InvocationBody and proceeds
 with chain construction.
 
-The approval signature is verified separately from the main aggregate.
+Receipts are signed under their own domain separation tag, distinct
+from those of chain signatures and registration proofs. The kind check
+of phase 7 already stops a key from being used across these roles, so
+the separate tag is defense in depth. The approval signature is verified
+separately from the main aggregate.
 This decoupling has two consequences. First, the security argument for
 chain integrity does not depend on approval service trust:
 compromise of an approval service does not enable chain forgery.
@@ -1587,7 +1596,8 @@ The grammar of scope expressions, in Backus-Naur form:
 
 \begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
 scope    ::= rule+ | "allow" "all" | "deny" "all"
-rule     ::= "allow" tool action params? where? approval?
+rule     ::= "allow" at tool action params? where? approval?
+at       ::= "at" "=" principal
 tool     ::= "tool" "=" identifier
 action   ::= "action" "=" identifier
 params   ::= "params" "{" binding ("," binding)* "}"
@@ -1600,21 +1610,28 @@ atom     ::= path numop value
            | path strop string-value
            | path "in" list-value
            | path "under" string-value
-approval ::= "approval" "requires" identifier ("," identifier)*
+approval ::= "approval" "requires" principal ("," principal)*
 type     ::= "int" | "string" | "bool"
 numop    ::= "<" | "<=" | "==" | ">=" | ">"
 strop    ::= "==" | "starts_with" | "ends_with" | "contains"
 path     ::= identifier ("." identifier)*
+principal  ::= identifier ":" identifier ":" identifier
+identifier ::= letter (letter | digit | "_" | "-")*
 value    ::= integer | string | boolean
 list-value ::= "[" value ("," value)* "]"
 \end{lstlisting}
 
 A scope is either a special form (\texttt{allow all}, \texttt{deny all})
-or a non-empty disjunction of \emph{rules}. Each rule specifies a tool,
-an action, an optional declaration of expected parameter types
+or a non-empty disjunction of \emph{rules}. Each rule specifies the
+verifier it authorizes (\texttt{at}), a tool, an action, an optional
+declaration of expected parameter types
 (\texttt{params}), an optional condition on parameter values
 (\texttt{where}), and an optional approval requirement
-(\texttt{approval}). The semantics of a scope is the union of the
+(\texttt{approval}). A \emph{principal} is a registry identifier of the
+form \texttt{organization-id:kind:local-id} (\cref{sec:identity-registration});
+its kind must be \texttt{service} in an \texttt{at} clause and
+\texttt{approver} in an \texttt{approval} clause, and a policy that
+breaks either rule is malformed. The semantics of a scope is the union of the
 invocations permitted by its rules; \texttt{deny all} permits nothing,
 and \texttt{allow all} is a reserved form used for top-level trusted
 contexts (e.g., the issuer's session-issuance authority).
@@ -1642,7 +1659,10 @@ containment is therefore an operator on strings rather than a type.
 \texttt{.} or \texttt{..} segments --- and \texttt{q} is a prefix of it
 segment by segment. The canonical-form condition is not optional:
 without it, \texttt{/home/agent/workspace/../../etc/passwd} would pass
-a check for \texttt{under "/home/agent/workspace"}.
+a check for \texttt{under "/home/agent/workspace"}. The literal
+\texttt{q} must itself be a canonical absolute path. A policy containing
+a non-canonical one is malformed and rejected when it is loaded, since
+such a prefix would otherwise silently match nothing.
 
 Disjunction and negation are deliberately absent from the expression
 language. Disjunction is recovered one level up: a scope is a union of
@@ -1665,40 +1685,45 @@ SAT solver on an input the sender chose.
 A representative policy fragment governing a payments tool:
 
 \begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
-allow tool=payments action=transfer
+allow at=orgb:service:payments
+  tool=payments action=transfer
   params { amount: int,
            to_account: string }
   where amount <= 1000
-allow tool=payments action=transfer
+allow at=orgb:service:payments
+  tool=payments action=transfer
   params { amount: int,
            to_account: string }
   where amount <= 100000
         and to_account in
             ["acct_vendor_a", "acct_vendor_b"]
   approval requires orga:approver:finance
-allow tool=files action=read
+allow at=orgb:service:files
+  tool=files action=read
   params { file: string }
   where file under "/home/agent/workspace"
 \end{lstlisting}
 
-This policy permits unconditional transfers up to 1{,}000 units;
-transfers up to 100{,}000 units to two approved vendors with finance
-approval; and read access to files anywhere under a specific workspace
-directory. Any invocation falling outside these three rules is denied
+This policy permits, at two named services of Organization B,
+unconditional transfers up to 1{,}000 units; transfers up to 100{,}000
+units to two approved vendors with finance approval; and read access to
+files anywhere under a specific workspace directory. Any invocation falling outside these three rules is denied
 by the implicit closing rule \texttt{deny all}.
 
 \subsection{Evaluation Semantics}
 \label{sec:policy-eval}
 
 Given a scope $S$ and an invocation
-$I = (\text{tool}, \text{action}, \text{params})$, the evaluator returns
+$I = (\text{aud}, \text{tool}, \text{action}, \text{params})$, whose
+audience is the \texttt{aud} field of the invocation body, the evaluator returns
 \textsc{allow}, \textsc{allow-with-approval}(\textit{services}), or
 \textsc{deny}. The procedure is:
 
 \begin{enumerate}
     \item For each rule $r$ in $S$ in declaration order:
     \begin{enumerate}
-        \item If $r$'s tool and action do not match $I$, continue.
+        \item If $r$'s audience, tool, or action does not match $I$,
+              continue.
         \item Type-check $I.\text{params}$ against $r$'s
               \texttt{params} declaration. The check is
               \emph{closed-world}: the rule matches only if
@@ -1731,6 +1756,17 @@ binding is not constraint. A rule declaring \texttt{amount} and
 carrying it would be honoring an authorization the policy never
 granted. Closing the world is what makes a parameter declaration a
 constraint rather than a schema hint.
+
+\paragraph{The audience clause.}
+Every rule names the verifier it authorizes, and step 1(a) requires that
+name to equal the invocation's \texttt{aud}. The clause is mandatory for
+the same reason the parameter check is closed-world. The \texttt{aud}
+field of \cref{sec:protocol-digest} binds an invocation to one verifier,
+but binding is not constraint. Without the clause, \texttt{tool=payments}
+would authorize payments at every organization that pinned the policy.
+A prompt-injected agent could then address a fresh, correctly signed
+chain to the wrong one and remain within policy. A policy used with
+several partners therefore lists its rules per verifier.
 
 \paragraph{Match order.}
 Rules are tried in declaration order and the first match wins, so a
@@ -1796,12 +1832,15 @@ procedure:
         \item Find the first rule $r_1$ of $S_1$, in declaration
               order, such that $r_2 \subseteq r_1$ as rules. If there is
               none, return false.
-        \item For every rule $r'$ that precedes $r_1$ in $S_1$, agrees
-              with $r_2$ on tool, action, and parameter declaration, and
-              has a \texttt{where} clause jointly satisfiable with
-              $r_2$'s, check that $r'$'s approval requirement is no
-              stronger than $r_2$'s. If some $r'$ fails this check,
-              return false.
+        \item Consider every rule $r'$ that precedes $r_1$ in $S_1$,
+              agrees with $r_2$ on audience, tool, action, and parameter
+              declaration, and has a \texttt{where} clause jointly
+              satisfiable with $r_2$'s. Skip $r'$ if some rule $r_2'$
+              preceding $r_2$ in $S_2$ agrees with $r'$ on audience,
+              tool, action and declaration and has a clause implied by
+              $r'$'s. Otherwise check that $r'$'s approval requirement
+              is no stronger than $r_2$'s, and return false if it is
+              stronger.
     \end{enumerate}
     \item Otherwise, return true.
 \end{enumerate}
@@ -1817,18 +1856,29 @@ imposed by an earlier parent rule --- exactly the escalation
 \cref{def:subset} is meant to exclude --- and the procedure would not
 notice.
 
-The restriction to rules before $r_1$ also removes a false rejection.
-Checking every overlapping rule regardless of position would reject even
-$P \subseteq P$ for the policy of \cref{sec:policy-example}, whose
-permissive first rule overlaps a later rule that requires approval. The
-procedure is still not reflexive in general. A child rule shadowed by an
-earlier child rule is judged as though it decided its own invocations,
-and if a parent rule before its subsuming rule demands a stronger
-approval, it is rejected. This is one more instance of the
-incompleteness described in \cref{rem:incompleteness}.
+The skip condition handles the converse case, in which a rule of $S_2$
+is itself shadowed. An invocation that $r_2$ decides under $S_2$ matched
+no earlier rule of $S_2$, and in particular did not match $r_2'$.
+Because $r'$ has the same audience, tool, action and declaration as
+$r_2'$ and a clause that implies $r_2'$'s, the invocation did not match
+$r'$ either, so $r'$ cannot be the rule that decides it under $S_1$.
+Without the skip, the procedure would reject policies written in the
+order \cref{sec:policy-eval} recommends. With an approval-requiring rule
+placed before an overlapping permissive one, such a policy would fail to
+contain itself. Phase 6 would then reject every session whose scope is
+the pinned policy, and every agent that re-delegates its whole scope
+unchanged.
 
-Rule subsumption ($r_2 \subseteq r_1$) requires: the tools and actions
-match; $r_1$ and $r_2$ declare the \emph{same} set of parameter paths
+With both conditions the procedure is reflexive: $P \subseteq P$ for
+every scope $P$. For each rule $r_2$ of $P$, step 3(a) succeeds, since
+$r_2$ subsumes itself, and the $r_1$ it finds lies at or before $r_2$.
+Every rule $r'$ preceding $r_1$ is therefore an earlier rule of $P$
+itself, and it is skipped with $r_2' = r'$. The incompleteness of
+\cref{rem:incompleteness}, which concerns rules covered only by unions
+of other rules, remains.
+
+Rule subsumption ($r_2 \subseteq r_1$) requires: the audiences, tools
+and actions match; $r_1$ and $r_2$ declare the \emph{same} set of parameter paths
 with the same types; $r_1$'s approval requirement is no stronger than
 $r_2$'s (so that any approvals satisfying $r_2$ also satisfy $r_1$);
 and $r_2$'s \texttt{where} clause implies $r_1$'s.
@@ -1885,14 +1935,17 @@ for each atom of $r_1$'s clause, evaluates a closed-form implication
 against the constraint that $r_2$'s atoms induce on the same path; the
 number of such checks is bounded by the product of the two atom counts,
 and each is constant-time in the atom's operands. Step 3(b) performs a
-satisfiability check of the same form over the same pairs. The total is
-polynomial in $|S_1| + |S_2|$.
+satisfiability check of the same form over the same pairs, and its skip
+condition adds, for each $r_2$, at most one implication check per pair
+of a rule of $S_1$ and a rule of $S_2$. The total is polynomial in
+$|S_1| + |S_2|$.
 
 \emph{Soundness.} Suppose the procedure returns true, and let $I$ be an
 invocation the evaluator accepts under $S_2$, decided there by the first
 rule $r_2 \in S_2$ that matches it. Step 3(a) exhibited the first
-$r_1 \in S_1$ with $r_2 \subseteq r_1$. Then $r_1$ matches $I$ as well: the tool and action
-agree, so step 1(a) of \cref{sec:policy-eval} passes; the parameter
+$r_1 \in S_1$ with $r_2 \subseteq r_1$. Then $r_1$ matches $I$ as well:
+the audience, tool and action agree, so step 1(a) of
+\cref{sec:policy-eval} passes; the parameter
 declarations are identical, so the closed-world check of step 1(b)
 passes; every path $r_1$'s clause mentions is declared and therefore
 present, so step 1(c) passes; and $r_2$'s clause holds of $I$ and
@@ -1902,10 +1955,13 @@ $S_1$ is the first rule of $S_1$ matching $I$. Because $r_1$ matches
 $I$, that rule is either $r_1$ itself, whose approval requirement step
 3(a) compared with $r_2$'s, or a rule $r'$ preceding $r_1$. In the
 second case $r'$ and $r_2$ both match $I$, so by the identity argument
-above they have identical declarations. They also agree on tool and
-action, and $I$ satisfies both clauses, so those clauses are jointly
-satisfiable. Step 3(b) therefore examined $r'$, and its approval
-requirement is no stronger than $r_2$'s. Thus $I$ is
+above they have identical declarations. They also agree on audience,
+tool and action, and $I$ satisfies both clauses, so those clauses are
+jointly satisfiable. Nor was $r'$ skipped. A skipping rule $r_2'$ would
+precede $r_2$ in $S_2$ with a clause implied by $r'$'s, so $I$, which
+matches $r'$, would match $r_2'$ too, contradicting the choice of $r_2$
+as the first rule of $S_2$ matching $I$. Step 3(b) therefore examined
+$r'$, and its approval requirement is no stronger than $r_2$'s. Thus $I$ is
 accepted under $S_1$ with an approval requirement no stronger than the
 one $S_2$ imposes, which is \cref{def:subset}.
 \end{proof}
@@ -1916,9 +1972,10 @@ The procedure is sound but not complete. Step 3(a) requires each rule of
 $S_2$ to be subsumed by a \emph{single} rule of $S_1$, so a child rule
 covered only by the union of several parent rules is rejected. Take
 $S_1$ to be the two rules
-\texttt{allow tool=t action=a params \{x: int\} where x <= 10} and
-\texttt{allow tool=t action=a params \{x: int\} where x > 10}, and $S_2$
-the single rule \texttt{allow tool=t action=a params \{x: int\}}. Every
+\texttt{allow at=v tool=t action=a params \{x: int\} where x <= 10} and
+\texttt{allow at=v tool=t action=a params \{x: int\} where x > 10}, and
+$S_2$ the single rule
+\texttt{allow at=v tool=t action=a params \{x: int\}}. Every
 invocation accepted under $S_2$ is accepted under $S_1$, so
 $S_2 \subseteq S_1$ holds semantically; but neither rule of $S_1$
 subsumes $S_2$'s rule on its own, and the procedure returns false. The
@@ -1951,6 +2008,13 @@ introduce latency and additional trust dependencies). Where stateful
 authorization is required, we anticipate it being handled at the tool
 implementation layer, after the protocol's stateless authorization
 check has succeeded.
+
+The \texttt{under} operator is lexical. Its canonical-form requirement
+stops \texttt{..} traversal, but it cannot see the filesystem: a
+symbolic link inside the permitted tree can point outside it. A tool
+that accepts a path authorized by \texttt{under} must therefore resolve
+it without following links out of the tree, and the protocol's check
+does not relieve it of that.
 
 The closed-world condition of \cref{sec:policy-eval} carries an
 operational cost of its own. Adding an optional parameter to a tool is
@@ -2224,7 +2288,9 @@ by \cref{thm:replay}, under the single-logical-verifier hypothesis
 stated there; cross-context token reuse (\threatref{3c}) is addressed by
 domain separation tags (\cref{sec:protocol-digest}); and cross-verifier
 reuse (\threatref{3d}) is addressed by the audience check of phase 1,
-the second part of \cref{thm:replay}. The prevented part
+the second part of \cref{thm:replay}. The mandatory audience clause of
+every rule (\cref{sec:policy-eval}) goes further, and lets a policy
+state which verifiers it authorizes at all. The prevented part
 of the approval family (\threatref{4b}--\threatref{4d}) is addressed by
 \cref{thm:approval-binding} together with the policy containment chain
 of \cref{eq:chain-containment}; \threatref{4a} is bounded rather than
@@ -2926,70 +2992,12 @@ was undertaken.
 \section*{Use of AI Tools}
 \label{sec:ai-tools}
 
-The author used a large language model (Anthropic Claude) extensively
-during the preparation of this manuscript. The model was used to
-draft prose, propose organizational structures for technical sections,
-formalize the policy language grammar, and prepare initial proof
-sketches for the security theorems. The model also served as a
-critical reader, identifying issues such as overstated claims about
-verification complexity that were subsequently corrected.
-
-Six subsequent revision passes were also carried out with model
-assistance, each working from written review comments supplied by the
-author. The first corrected technical and statement-level errors in the
-first draft. It revised the revocation, policy-evaluation, and
-subset-relation material of \cref{sec:identity-revocation},
-\cref{sec:policy-eval}, and \cref{sec:policy-subset}; corrected several
-proof sketches in \cref{sec:security}; and re-ran the bibliography
-verification described below. The later passes changed the protocol
-itself. They made the policy a ceiling against which the session scope
-is checked; required verifiers to pin the policies they accept; and
-bound each organization identifier to the registry root key that may
-certify it (\cref{sec:policy,sec:identity-resolution}). They also split
-the verifier into \cref{alg:verify,alg:verify2} and aligned it with the
-token fields of \cref{sec:protocol-digest}, including a new
-\texttt{kind} field. Finally, they rewrote the proofs of
-\cref{thm:chain-integrity,thm:scope-monotonicity,thm:approval-binding},
-added the verifier-configuration assumption of
-\cref{sec:security-assumptions}, and reclassified the approval-service
-threat in \cref{sec:threat-scope}. The fifth pass corrected the basis
-of the aggregate-security argument, added an explicit distinct-message
-check to the verifier, and repositioned the paper against related work
-it had described inaccurately or omitted
-(\cref{sec:identity-pop,sec:security-assumptions,sec:related-work}).
-The sixth fixed five protocol defects found by a further independent
-review: role confusion between certificate kinds, a missing audience
-binding, approver keys fixed in immutable policies, a race in the replay
-check, and an unsound containment check caused by overlapping parameter
-types. It also fixed a false rejection in the containment check,
-introduced by an earlier pass and found while fixing the last of these
-(\cref{sec:protocol-verification,sec:policy-subset}). The design choices
-in all six passes were made or approved by the author.
-
-The protocol design, threat model, and all underlying research
-decisions are the author's own. All technical claims have been
-independently verified by the author against authoritative sources;
-the model's outputs were not accepted without scrutiny.
-
-Every cited reference was checked against an original source on
-2026-08-30, and again on 2026-09-27. The first check established that
-each reference exists and is described correctly. It found three errors:
-one cited preprint had been withdrawn by its authors and was removed
-rather than replaced with a weakened claim; one had been published under
-a different title, which is now cited; and the BLS12-381 curve
-parameters had been attributed to the CFRG BLS signature draft, which
-specifies the signature scheme rather than the curve. The second check
-also asked whether each reference supports the specific sentence it is
-attached to, which the first had not. It found that the
-aggregate-security argument had been attributed to Boneh, Drijvers and
-Neven, whose result concerns a different rogue-key defense, when the
-property the construction uses is the distinct-message security of
-Boneh, Gentry, Lynn and Shacham. It also found that a cited security
-analysis of MCP, described as proposing no protocol changes, in fact
-proposes one, and that the closest contemporary protocol had been
-credited with parameter binding it does not provide. Six references were
-also updated to their current versions. The author takes full responsibility for
-the content, accuracy, and conclusions of this work.
+The author used a large language model (Anthropic Claude) in preparing
+this manuscript: to organize and draft text, formalize the policy
+language grammar, and prepare initial proof sketches. The protocol design, threat
+model, and research decisions are the author's own. The model's outputs
+were reviewed by the author, who takes full responsibility for the
+content, accuracy, and conclusions of this work.
 
 \printbibliography
 
