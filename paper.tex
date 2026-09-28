@@ -385,9 +385,10 @@ by family. \Cref{sec:threat-within-scope} lists what it \emph{prevents}.
 remains possible, and the protocol limits what it can achieve. Both are
 in scope, in the sense that the design is answerable for them, but a
 reader who took the second group for the first would credit the protocol
-with guarantees it does not provide. The division cuts across one
-family --- \threatref{4a} is bounded while the rest of T4 is prevented
---- and we would rather have an untidy grouping than a tidy overclaim.
+with guarantees it does not provide. The division cuts across two
+families --- \threatref{4a} and \threatref{5b} are bounded while the
+rest of T4 and T5 are prevented --- and we would rather have an untidy
+grouping than a tidy overclaim.
 
 \subsubsection{Threats the protocol prevents}
 \label{sec:threat-within-scope}
@@ -453,6 +454,8 @@ attempts to modify invocation parameters after approval has been
 obtained.
 
 \paragraph{T5 --- Attacks on the identity infrastructure.}
+The variant \threatref{5b} is bounded rather than prevented and appears
+in \cref{sec:threat-bounded}.
 
 \threat{5a}{Key misattribution at registration.} An adversary attempts
 to have the registry certify, under the adversary's own identifier, a
@@ -460,9 +463,6 @@ public key it does not control --- typically another principal's. The
 adversary gains no ability to sign. What it breaks is the binding
 between keys and parties that non-repudiation depends on: the key's
 real holder can disown signatures made under it.
-
-\threat{5b}{Compromised registry signing key.} An adversary obtains a
-registry's root signing key and issues fraudulent certificates.
 
 \threat{5c}{Revocation suppression.} An adversary suppresses revocation
 information from reaching verifiers, extending the window during which
@@ -504,6 +504,20 @@ monitoring, revocation and rotation (\cref{sec:identity}). Policies name
 approval services by identifier, and their keys are resolved and checked
 for revocation at verification time, so revoking a compromised approval
 key takes effect without a new policy version.
+
+\paragraph{T5 --- Attacks on the identity infrastructure (one variant).}
+
+\threat{5b}{Compromised registry signing key.} An adversary obtains a
+registry's root signing key and issues fraudulent certificates. The
+protocol cannot prevent this, and the security arguments of
+\cref{sec:security} assume an honest root
+(\cref{sec:security-assumptions}). The damage is bounded in two ways. A
+registry root is trusted only for identifiers in its own organization's
+namespace (\cref{sec:identity-resolution}), so the compromise cannot
+reach another organization's identities. And sessions obtained through
+certificates it mints stay within the policies verifiers have pinned for
+that organization (\cref{sec:policy}). Recovery requires re-establishing
+the root out of band (\cref{sec:identity-rotation}).
 
 \paragraph{T6 --- Misuse of an agent within its own policy.}
 
@@ -668,7 +682,10 @@ where SessionBody contains the issuer's identifier and public key
 (\texttt{subject\_id}, \texttt{subject\_pk}), a session identifier
 (\texttt{session\_id}), a
 hash committing to the governing policy (\texttt{policy\_hash}), a
-scope expression, issue and expiry timestamps, and a fresh nonce.
+scope expression, issue and expiry timestamps, and a fresh nonce. The
+issue timestamp is informational. No check in the verifier depends on
+it, since, like every timestamp a signer supplies, it is not evidence of
+when signing happened (\cref{sec:identity-revocation}).
 
 \paragraph{Delegation messages.}
 For each intermediate hop $A_k$ with $1 \le k < N$:
@@ -865,8 +882,9 @@ separately from the main aggregate.
 This decoupling has two consequences. First, the security argument for
 chain integrity does not depend on approval service trust:
 compromise of an approval service does not enable chain forgery.
-Second, approval verification adds a single pairing operation per
-approval (typically zero or one per invocation), which we judge an
+Second, approval verification adds, per receipt, a hash to $\G{2}$ and
+a two-pairing check (two Miller loops and one final exponentiation).
+Receipts are typically zero or one per invocation, and we judge this an
 acceptable cost.
 
 Policy can require approvals from multiple services (logical AND); the
@@ -894,9 +912,13 @@ The verifier algorithm proceeds in phases, ordered to fail fast on
 cheap checks before performing expensive cryptographic operations.
 \Cref{alg:verify,alg:verify2} state the procedure; the paragraphs that
 follow comment on individual phases. Every \textbf{reject} is terminal.
-The only state the procedure changes is the nonce cache, in its final
-step, and that step is an atomic insert-if-absent. A chain that fails
-any check therefore leaves the verifier exactly as it found it.
+The only decision-relevant state the procedure changes is the nonce
+cache, in its final step, and that step is an atomic insert-if-absent.
+Resolution and policy loading may fill caches
+(\cref{sec:identity-resolution}). That affects the cost of later
+verifications but not, within the propagation bound of
+\cref{sec:identity-revocation}, their outcome. A chain that fails any
+check therefore leaves the nonce cache exactly as it found it.
 
 Three abbreviations keep the statement short, all of them reading fields
 named in \cref{sec:protocol-digest}. Write $\mathrm{sid}(B_k)$ for the
@@ -955,12 +977,12 @@ temporal, and identity checks. Phases run cheapest-first; every
   \State \textbf{reject} if $(\mathrm{spk}(B_N), B_N.\text{nonce}) \in
          \textit{NonceCache}$
   \LComment{Phase 4 --- key chain consistency}
-  \State \textbf{reject} if $B_0.\text{subject\_pk} \neq
-         \mathrm{spk}(B_1)$
-         \Comment{orchestrator signs the first hop}
+  \State \textbf{reject} if $(B_0.\text{subject\_id}, B_0.\text{subject\_pk})
+         \neq (\mathrm{sid}(B_1), \mathrm{spk}(B_1))$
   \For{$k \gets 1$ \textbf{to} $N-1$}
-    \State \textbf{reject} if $B_k.\text{delegatee\_pk} \neq
-           \mathrm{spk}(B_{k+1})$
+    \State \textbf{reject} if $(B_k.\text{delegatee\_id},
+           B_k.\text{delegatee\_pk}) \neq
+           (\mathrm{sid}(B_{k+1}), \mathrm{spk}(B_{k+1}))$
   \EndFor
   \LComment{Phase 5 --- identity resolution}
   \For{$k \gets 0$ \textbf{to} $N$}
@@ -975,8 +997,8 @@ temporal, and identity checks. Phases run cheapest-first; every
     \State \textbf{reject} unless $\mathit{cert}_k.\text{kind} =
            \mathrm{role}(k)$
            \Comment{role fixed by position}
-    \State \textbf{reject} if $\mathit{cert}_k$ is expired or revoked at
-           $t$
+    \State \textbf{reject} if $\mathit{cert}_k$ is not yet valid, expired,
+           or revoked at $t$
     \State $\pk_k \gets \mathit{cert}_k.\text{pk}$
            \Comment{equals $\mathrm{spk}(B_k)$ by resolution}
   \EndFor
@@ -1086,11 +1108,14 @@ explicit hypothesis.
 
 \paragraph{Public key chain consistency.}
 The verifier checks that each body is signed by the party its
-predecessor named. The session body's subject key must equal the signer
-key of $B_1$, and each delegation body's delegatee key must equal the
-signer key of the body that follows it. The signer key of a delegation
-body is its delegator key, and that of the invocation body is its
-invoker key, so the rule also covers the shortest chain: when $N = 1$
+predecessor named. The session body's subject identifier and key must
+equal the signer identifier and key of $B_1$, and each delegation body's
+delegatee identifier and key must equal those of the body that follows
+it. Comparing identifiers as well as keys ensures that the party that
+acts is the one that was named, even where one key is certified under
+more than one identifier. The signer of a delegation body is its
+delegator, and that of the invocation body is its invoker, so the rule
+also covers the shortest chain: when $N = 1$
 there are no delegations, and the orchestrator named in the session is
 itself the invoker.
 
@@ -1134,19 +1159,23 @@ If this check succeeds, all integrity, parameter-binding, and chain
 provenance properties hold simultaneously.
 
 \paragraph{Cost.}
-The aggregate check has a single multi-pairing structure with $N+2$
-internal pairings. In modern BLS libraries (e.g., \texttt{blst}), the
-Miller loops of these pairings share computation, and only a single
-final exponentiation is required. The empirical cost is well
-approximated by $\alpha + \beta N$ where $\alpha$ is the dominant final
-exponentiation cost and $\beta$ is the per-Miller-loop cost. For chain
-lengths $N \le 10$ (which we expect to cover the overwhelming majority
-of practical deployments), the variation with $N$ is small relative
-to $\alpha$, and total verification latency is dominated by the constant
-term. This is significantly more favorable than verification approaches
-requiring network round-trips per hop (e.g., OAuth token
-introspection), but does not amount to truly asymptotic $O(1)$
-verification; the honest characterization is ``compact aggregate
+The aggregate check is a multi-pairing with $N+2$ pairings: one against
+$g_1$ and one for each of the $N+1$ hops. Each hop also needs a hash to
+$\G{2}$, to compute $\HashG(m_k)$. In modern BLS libraries (e.g.,
+\texttt{blst}) the Miller loops of a multi-pairing share part of their
+computation, and a single final exponentiation is required. The cost is
+therefore approximated by $\alpha + \beta N$. Here $\alpha$ collects the
+final exponentiation and the terms that do not grow with $N$, and
+$\beta$ is the per-hop cost: one hash to $\G{2}$ plus one Miller loop.
+Hashing to $\G{2}$ is not cheap --- it involves a map to the curve and
+cofactor clearing in $\G{2}$ \citep{rfc9380} --- so $\beta$ cannot be
+assumed small relative to $\alpha$. For chains of more than a few hops,
+the linear term need not be dominated by the constant one, and which
+dominates in practice is for the measurements of
+\cref{sec:future-work} to settle. This compares favorably with
+verification approaches requiring network round-trips per hop (e.g.,
+OAuth token introspection), but does not amount to truly asymptotic
+$O(1)$ verification; the honest characterization is ``compact aggregate
 signatures with multi-pairing efficiency.''
 
 One comparison should be stated before a reader finds it. The CFRG
@@ -1184,7 +1213,7 @@ check is the only thing left to establish, and the work is warranted.
   4/-2.85/{4. Public key chain consistency},
   5/-3.80/{5. Identity resolution (may query registry)},
   6/-4.75/{6. Scope containment and policy evaluation},
-  7/-5.70/{7. Approval receipts (one pairing each)},
+  7/-5.70/{7. Approval receipts (two-pairing check each)},
   8/-6.65/{8. Aggregate multi-pairing ($N{+}2$ pairings)}}
 {
   \node[ph] (p\i) at (0,\y) {\txt};
@@ -1305,7 +1334,13 @@ the matching kind (\cref{sec:protocol-verification}). A
 \texttt{service} identifier names a verifier and serves only as the
 audience of an invocation (\cref{sec:protocol-digest}). A verifier never
 has to prove its identity in this protocol, so it needs no certificate.
-The \texttt{organization-id} matches the issuing registry's identifier.
+The \texttt{signer} kind identifies a signing service in its own right,
+for operational authentication outside this protocol, for example
+between an agent runtime and the signing service that holds its key. A
+signing service signs chain bodies only with the agent keys it holds,
+under those agents' certificates; no position in a chain, and no
+receipt, accepts a \texttt{signer} certificate. The
+\texttt{organization-id} matches the issuing registry's identifier.
 
 Registration produces a certificate binding an identifier to a public
 key, signed by the registry. Certificates contain version
@@ -1374,8 +1409,12 @@ Implementations should use library-provided subgroup checks (e.g.,
 
 Verifiers resolve an identifier, together with the public key that the
 body being checked names for it, by querying the issuing registry's
-resolution endpoint. Resolution returns the valid certificate binding
-that identifier to that key. During the overlap of a scheduled rotation
+resolution endpoint. Resolution returns the certificate binding that
+identifier to that key. Registries issue at most one certificate for any
+such pair, so renewing without a new key replaces the certificate rather
+than adding one. Whether the certificate is valid at verification time
+--- not yet valid, expired, or revoked --- is decided by the verifier,
+at line 27 of \cref{alg:verify}, not by the resolver. During the overlap of a scheduled rotation
 (\cref{sec:identity-rotation}) two certificates for one identifier are
 valid, and the key selects between them; this applies to issuers,
 agents and approval services alike. The response includes the certificate
@@ -1642,6 +1681,10 @@ principal  ::= identifier ":" identifier ":" identifier
 identifier ::= letter (letter | digit | "_" | "-")*
 value    ::= integer | string | boolean
 list-value ::= "[" value ("," value)* "]"
+string-value ::= string
+string   ::= '"' (char | '\"' | '\\')* '"'
+integer  ::= "-"? digit+
+boolean  ::= "true" | "false"
 \end{lstlisting}
 
 A scope is either a special form (\texttt{allow all}, \texttt{deny all})
@@ -1686,6 +1729,54 @@ a check for \texttt{under "/home/agent/workspace"}. The literal
 \texttt{q} must itself be a canonical absolute path. A policy containing
 a non-canonical one is malformed and rejected when it is loaded, since
 such a prefix would otherwise silently match nothing.
+
+In the grammar, \texttt{char} is any Unicode scalar value other than a
+double quote or backslash, and string literals are NFC-normalized, like
+the text values they are compared with (\cref{sec:protocol-params}).
+
+\paragraph{Well-formedness.}
+The grammar admits scopes that make no sense, and the procedures of
+\cref{sec:policy-eval,sec:policy-subset} are defined only for
+well-formed ones. A rule is \emph{well-formed} when four conditions
+hold.
+\begin{enumerate}
+    \item Every path its \texttt{where} clause mentions is declared in
+          its \texttt{params}, and no path is declared twice.
+    \item Each atom applies an operator that the declared type of its
+          path admits, with a literal of that type, as in the table
+          below.
+    \item The principal in its \texttt{at} clause has kind
+          \texttt{service}, and those in its \texttt{approval} clause
+          have kind \texttt{approver}.
+    \item The literal of every \texttt{under} atom is a canonical
+          absolute path.
+\end{enumerate}
+\begin{center}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Declared type & Operators & Literal \\
+\midrule
+\texttt{int}    & \texttt{<} \ \texttt{<=} \ \texttt{==} \ \texttt{>=} \ \texttt{>};
+                  \ \texttt{in} & integer; list of integers \\
+\texttt{string} & \texttt{==} \ \texttt{starts\_with} \ \texttt{ends\_with}
+                  \ \texttt{contains}; \ \texttt{in} & string; list of strings \\
+                & \texttt{under} & canonical absolute path \\
+\texttt{bool}   & \texttt{==}; \ \texttt{in} & boolean; list of booleans \\
+\bottomrule
+\end{tabular}
+\end{center}
+The operator \texttt{==} appears in both \texttt{numop} and
+\texttt{strop}; the declared type of the path decides which is meant. A
+scope is well-formed when all of its rules are, and a scope that
+violates any of these conditions is \emph{malformed}.
+\textsc{LoadPolicy} rejects a malformed policy, and the containment
+procedure of \cref{sec:policy-subset} returns false when either scope is
+malformed, so a malformed scope in a token causes rejection in phase 6.
+One consequence is used in \cref{prop:decidability}. In a well-formed
+rule, every path the clause mentions is declared, so it is present in
+any invocation that passes the rule's closed-world check, and step 1(c)
+of the evaluator cannot fail.
 
 Disjunction and negation are deliberately absent from the expression
 language. Disjunction is recovered one level up: a scope is a union of
@@ -1847,7 +1938,8 @@ under $S_1$, with at least as restrictive an approval requirement.
 
 Containment is checked --- conservatively, as \cref{prop:decidability}
 and \cref{rem:incompleteness} make precise --- by the following
-procedure:
+procedure, which first returns false if either scope is malformed
+(\cref{sec:policy-grammar}):
 
 \begin{enumerate}
     \item If $S_1$ is \texttt{allow all}, return true.
@@ -1886,9 +1978,12 @@ notice.
 The skip condition handles the converse case, in which a rule of $S_2$
 is itself shadowed. An invocation that $r_2$ decides under $S_2$ matched
 no earlier rule of $S_2$, and in particular did not match $r_2'$.
-Because $r'$ has the same audience, tool, action and declaration as
-$r_2'$ and a clause that implies $r_2'$'s, the invocation did not match
-$r'$ either, so $r'$ cannot be the rule that decides it under $S_1$.
+Suppose it matched $r'$. It would then pass $r_2'$'s closed-world check,
+since the declarations are identical; every path in $r_2'$'s clause
+would be present, since in a well-formed rule those paths are declared;
+and it would satisfy that clause, which $r'$'s implies. So it would
+match $r_2'$, which it did not. Hence $r'$ cannot be the rule that
+decides it under $S_1$.
 Without the skip, the procedure would reject policies written in the
 order \cref{sec:policy-eval} recommends. With an approval-requiring rule
 placed before an overlapping permissive one, such a policy would fail to
@@ -1977,8 +2072,9 @@ $r_1 \in S_1$ with $r_2 \subseteq r_1$. Then $r_1$ matches $I$ as well:
 the audience, tool and action agree, so step 1(a) of
 \cref{sec:policy-eval} passes; the parameter
 declarations are identical, so the closed-world check of step 1(b)
-passes; every path $r_1$'s clause mentions is declared and therefore
-present, so step 1(c) passes; and $r_2$'s clause holds of $I$ and
+passes; $r_1$ is well-formed (\cref{sec:policy-grammar}), so every path
+its clause mentions is declared and therefore present, and step 1(c)
+passes; and $r_2$'s clause holds of $I$ and
 implies $r_1$'s, so step 1(d) passes. Hence $I$ is accepted under $S_1$.
 For the approval component, the rule that actually decides $I$ under
 $S_1$ is the first rule of $S_1$ matching $I$. Because $r_1$ matches
@@ -1990,7 +2086,9 @@ tool and action, and $I$ satisfies both clauses, so those clauses are
 jointly satisfiable. Nor was $r'$ skipped. A skipping rule $r_2'$ would
 precede $r_2$ in $S_2$, agree with $r'$ on audience, tool, action and
 declaration, and have a clause implied by $r'$'s. So $I$, which matches
-$r'$, would match $r_2'$ too, contradicting the choice of $r_2$ as the
+$r'$, would match $r_2'$ too --- it passes the same closed-world check,
+every path in $r_2'$'s clause is declared by well-formedness and so
+present, and that clause is implied by $r'$'s --- contradicting the choice of $r_2$ as the
 first rule of $S_2$ matching $I$. Step 3(b) therefore examined
 $r'$, and its approval requirement is no stronger than $r_2$'s. Thus $I$ is
 accepted under $S_1$ with an approval requirement no stronger than the
@@ -2334,8 +2432,9 @@ state which verifiers it authorizes at all. The prevented part
 of the approval family (\threatref{4b}--\threatref{4d}) is addressed by
 \cref{thm:approval-binding} together with the policy containment chain
 of \cref{eq:chain-containment}; \threatref{4a} is bounded rather than
-prevented and is discussed below. The identity family
-(\threatref{5a}--\threatref{5d}) is addressed by proof-of-possession
+prevented and is discussed below. The prevented part of the identity
+family (\threatref{5a}, \threatref{5c}, \threatref{5d}) is addressed by
+proof-of-possession
 (\cref{sec:identity-pop}), short-lived certificates and revocation
 (\cref{sec:identity-revocation}), and optional transparency log
 integration. Certificate substitution (\threatref{5d}) additionally
@@ -2361,7 +2460,12 @@ from the decoupling of \cref{sec:protocol-approvals}: because approval
 signatures are verified separately from the chain aggregate, the
 compromise cannot extend to chain forgery or scope escalation, and it
 reaches only those invocations that policy routes through the affected
-service. \emph{Within-policy prompt injection} (\threatref{6a}) --- an adversary
+service. A \emph{compromised registry root} (\threatref{5b}) can
+certify any identity in its own organization's namespace. Its reach is
+bounded by the namespace binding of \cref{sec:identity-resolution}, which
+keeps it out of every other organization's identifiers, and by pinning:
+the sessions it enables stay within the policies verifiers have pinned
+for that organization. \emph{Within-policy prompt injection} (\threatref{6a}) --- an adversary
 inducing an agent to take an action that is within its permitted policy
 but contrary to the principal's intent --- is not prevented by the
 protocol. The protocol's contribution is to \emph{bound the blast
