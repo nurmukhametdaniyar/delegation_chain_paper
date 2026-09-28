@@ -663,9 +663,10 @@ The issuer signs:
 \begin{equation}
 m_0 = H(\text{TAG\_SES} \,\|\, \Canon(\text{SessionBody}))
 \end{equation}
-where SessionBody contains the issuer's identifier
-(\texttt{issuer\_id}), the orchestrator's identifier and public key
-(\texttt{subject\_id}, \texttt{subject\_pk}), a session identifier, a
+where SessionBody contains the issuer's identifier and public key
+(\texttt{issuer\_id}, \texttt{issuer\_pk}), the orchestrator's identifier and public key
+(\texttt{subject\_id}, \texttt{subject\_pk}), a session identifier
+(\texttt{session\_id}), a
 hash committing to the governing policy (\texttt{policy\_hash}), a
 scope expression, issue and expiry timestamps, and a fresh nonce.
 
@@ -677,8 +678,14 @@ m_k = H(\text{TAG\_DEL} \,\|\, m_{k-1} \,\|\, \Canon(\text{DelegationBody}_k))
 where DelegationBody$_k$ contains the delegator's identifier and public
 key (\texttt{delegator\_id}, \texttt{delegator\_pk}), the delegatee's
 identifier and public key (\texttt{delegatee\_id},
-\texttt{delegatee\_pk}), the attenuated sub-scope, a hop index, the
-parent session identifier, expiry, and a fresh nonce. The delegator's
+\texttt{delegatee\_pk}), the attenuated sub-scope, its hop index $k$
+(\texttt{hop\_index}), the parent session's identifier
+(\texttt{session\_id}), expiry, and a fresh nonce. The hop index and
+session identifier are redundant with the digest recursion, which
+already fixes each delegation's position and session. The verifier
+checks them anyway, in phase 1, because doing so rejects a chain spliced
+from two sessions, or with a hop out of place, before any pairing is
+computed. The delegator's
 identifier is carried explicitly so that a verifier can resolve the
 signer's certificate from the body it is checking, rather than having
 to reach back into the preceding token. The critical property is that
@@ -843,7 +850,8 @@ this preliminary body, and submits the digest along with the full body
 to the required approval service. The service presents the proposed
 invocation to a human approver. On approval, the service signs an
 \emph{approval body} containing the service's identifier
-(\texttt{approver\_id}) and public key, the invocation digest, opaque
+and public key (\texttt{approver\_id}, \texttt{approver\_pk}), the
+invocation digest, opaque
 attestation data identifying the human approver, and issue and expiry
 timestamps (\texttt{iat}, \texttt{exp}). The signed receipt is returned to the
 agent, which embeds it in the now-complete InvocationBody and proceeds
@@ -895,10 +903,10 @@ named in \cref{sec:protocol-digest}. Write $\mathrm{sid}(B_k)$ for the
 identifier of the party that signed $B_k$: \texttt{issuer\_id} for the
 session body, \texttt{delegator\_id} for a delegation body,
 \texttt{invoker\_id} for the invocation body. Write $\mathrm{spk}(B_k)$
-for that party's public key as named in the body --- \texttt{delegator\_pk}
-or \texttt{invoker\_pk}; the session body names its subject's key, not
-its issuer's, so $\mathrm{spk}(B_0)$ is undefined and $\pk_0$ comes from
-the resolved certificate alone. Write $\mathrm{scope}(B_k)$ for the
+for that party's public key as named in the body: \texttt{issuer\_pk},
+\texttt{delegator\_pk} or \texttt{invoker\_pk}. Every body names its
+signer's key, so during a scheduled rotation, when two certificates for
+one identifier are valid at once, the key determines which one applies. Write $\mathrm{scope}(B_k)$ for the
 body's scope expression: the granted scope for the session body, the
 attenuated sub-scope for a delegation body. Finally, $\mathrm{org}(x)$ is
 the \texttt{organization-id} prefix of an identifier $x$
@@ -930,6 +938,12 @@ temporal, and identity checks. Phases run cheapest-first; every
          its position implies
   \State \textbf{reject} if $B_N.\text{aud} \neq \mathit{self}$
          \Comment{addressed to this verifier}
+  \State \textbf{reject} if $H(\Canon(B_N.\text{params})) \neq
+         B_N.\text{params\_hash}$
+  \For{$k \gets 1$ \textbf{to} $N-1$}
+    \State \textbf{reject} unless $B_k.\text{hop\_index} = k$ and
+           $B_k.\text{session\_id} = B_0.\text{session\_id}$
+  \EndFor
   \LComment{Phase 2 --- temporal}
   \State \textbf{reject} if $t \notin [\,B_N.\text{nbf},\,
          B_N.\text{exp}\,]$
@@ -950,7 +964,8 @@ temporal, and identity checks. Phases run cheapest-first; every
   \EndFor
   \LComment{Phase 5 --- identity resolution}
   \For{$k \gets 0$ \textbf{to} $N$}
-    \State $\mathit{cert}_k \gets \Call{Resolve}{\mathrm{sid}(B_k)}$;
+    \State $\mathit{cert}_k \gets
+           \Call{Resolve}{\mathrm{sid}(B_k), \mathrm{spk}(B_k)}$;
            \textbf{reject} if unresolvable
     \State \textbf{reject} unless $\mathit{cert}_k$ verifies under
            $\mathit{Root}[\mathrm{org}(\mathrm{sid}(B_k))]$
@@ -963,9 +978,7 @@ temporal, and identity checks. Phases run cheapest-first; every
     \State \textbf{reject} if $\mathit{cert}_k$ is expired or revoked at
            $t$
     \State $\pk_k \gets \mathit{cert}_k.\text{pk}$
-    \State \textbf{reject} if $k \ge 1$ and
-           $\pk_k \neq \mathrm{spk}(B_k)$
-           \Comment{body must name the certified key}
+           \Comment{equals $\mathrm{spk}(B_k)$ by resolution}
   \EndFor
 \algstore{dcverify}
 \end{algorithmic}
@@ -999,8 +1012,10 @@ the enclosing procedure carry over.}
     \ForAll{$s \in \mathit{svcs}$}
       \State $R \gets$ the receipt in $B_N$ with
              $R.\text{approver\_id} = s$; \textbf{reject} if none
-      \State $\mathit{cert}_R \gets \Call{Resolve}{s}$; \textbf{reject}
-             unless valid as in phase 5, kind \texttt{approver}
+      \State $\mathit{cert}_R \gets
+             \Call{Resolve}{s, R.\text{approver\_pk}}$
+      \State \textbf{reject} unless $\mathit{cert}_R$ passes the phase-5
+             checks with kind \texttt{approver}
       \State \textbf{reject} unless $R$ verifies under
              $\mathit{cert}_R.\text{pk}$ over
              $\Call{InvocationDigest}{B_N}$
@@ -1028,7 +1043,10 @@ the enclosing procedure carry over.}
 \paragraph{Structural and temporal checks.}
 The verifier first decodes the received chain and confirms canonical
 encoding (rejecting non-canonical inputs to prevent encoding-ambiguity
-attacks), and that the invocation is addressed to this verifier: the
+attacks), that the recomputed \texttt{params\_hash} matches
+(\cref{sec:protocol-params}), that every delegation body carries its own
+position as \texttt{hop\_index} and the session's
+\texttt{session\_id}, and that the invocation is addressed to this verifier: the
 invocation body's \texttt{aud} must equal the verifier's own
 \texttt{service} identifier. It then checks that the current time is within the
 invocation's validity window, that expiry times are monotonically
@@ -1354,8 +1372,13 @@ Implementations should use library-provided subgroup checks (e.g.,
 \subsection{Public Key Resolution}
 \label{sec:identity-resolution}
 
-Verifiers resolve identifiers to public keys by querying the issuing
-registry's resolution endpoint. The response includes the certificate
+Verifiers resolve an identifier, together with the public key that the
+body being checked names for it, by querying the issuing registry's
+resolution endpoint. Resolution returns the valid certificate binding
+that identifier to that key. During the overlap of a scheduled rotation
+(\cref{sec:identity-rotation}) two certificates for one identifier are
+valid, and the key selects between them; this applies to issuers,
+agents and approval services alike. The response includes the certificate
 and, if the registry is integrated with a transparency log, an
 inclusion proof. The verifier validates the certificate signature under
 the root public key it holds for the organization the identifier names,
@@ -1717,7 +1740,9 @@ Given a scope $S$ and an invocation
 $I = (\text{aud}, \text{tool}, \text{action}, \text{params})$, whose
 audience is the \texttt{aud} field of the invocation body, the evaluator returns
 \textsc{allow}, \textsc{allow-with-approval}(\textit{services}), or
-\textsc{deny}. The procedure is:
+\textsc{deny}. The special forms are decided directly: \texttt{allow all}
+returns \textsc{allow} and \texttt{deny all} returns \textsc{deny}.
+Otherwise $S$ is a list of rules, and the procedure is:
 
 \begin{enumerate}
     \item For each rule $r$ in $S$ in declaration order:
@@ -1826,7 +1851,9 @@ procedure:
 
 \begin{enumerate}
     \item If $S_1$ is \texttt{allow all}, return true.
-    \item If $S_2$ is \texttt{deny all} or has no rules, return true.
+    \item If $S_2$ is \texttt{deny all}, return true. If $S_2$ is
+          \texttt{allow all} (and, by step 1, $S_1$ is not), return
+          false.
     \item For each rule $r_2$ in $S_2$:
     \begin{enumerate}
         \item Find the first rule $r_1$ of $S_1$, in declaration
@@ -1940,7 +1967,10 @@ condition adds, for each $r_2$, at most one implication check per pair
 of a rule of $S_1$ and a rule of $S_2$. The total is polynomial in
 $|S_1| + |S_2|$.
 
-\emph{Soundness.} Suppose the procedure returns true, and let $I$ be an
+\emph{Soundness.} Steps 1 and 2 return true only when $S_1$ accepts
+every invocation with no approval requirement or $S_2$ accepts none, and
+containment then holds trivially. Otherwise $S_2$ is a list of rules.
+Suppose the procedure returns true, and let $I$ be an
 invocation the evaluator accepts under $S_2$, decided there by the first
 rule $r_2 \in S_2$ that matches it. Step 3(a) exhibited the first
 $r_1 \in S_1$ with $r_2 \subseteq r_1$. Then $r_1$ matches $I$ as well:
