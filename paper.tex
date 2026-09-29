@@ -862,8 +862,8 @@ policy requires, signed by that registered service. The receipt binds the human'
 specific invocation being approved.
 
 The flow is as follows. The agent constructs the InvocationBody
-\emph{except} for the approval receipt field, computes a digest over
-this preliminary body, and submits the digest along with the full body
+\emph{except} for the receipts field, computes the invocation digest of
+this preliminary body (defined below), and submits the digest along with the full body
 to the required approval service. The service presents the proposed
 invocation to a human approver. On approval, the service signs an
 \emph{approval body} containing the service's identifier
@@ -877,8 +877,22 @@ with chain construction.
 Receipts are signed under their own domain separation tag, distinct
 from those of chain signatures and registration proofs. The kind check
 of phase 7 already stops a key from being used across these roles, so
-the separate tag is defense in depth. The approval signature is verified
-separately from the main aggregate.
+the separate tag is defense in depth.
+
+The \emph{invocation digest} is
+\[
+\mathrm{InvocationDigest}(B_N) =
+  H(\texttt{TAG\_IVD} \,\|\, \Canon(B_N \text{ without its receipts field})).
+\]
+The receipts field is omitted when there are no receipts, so this is
+exactly the digest of the preliminary body the agent submitted, and the
+tag separates it from $m_N$. Receipts are ordered by approver
+identifier, bytewise ascending, with at most one per approval service.
+A body that breaks either rule, or carries an empty receipts field, is
+malformed. A receipt from an approval service that the policy does not
+require for the invocation is ignored.
+
+The approval signature is verified separately from the main aggregate.
 This decoupling has two consequences. First, the security argument for
 chain integrity does not depend on approval service trust:
 compromise of an approval service does not enable chain forgery.
@@ -1035,7 +1049,8 @@ the enclosing procedure carry over.}
       \State $R \gets$ the receipt in $B_N$ with
              $R.\text{approver\_id} = s$; \textbf{reject} if none
       \State $\mathit{cert}_R \gets
-             \Call{Resolve}{s, R.\text{approver\_pk}}$
+             \Call{Resolve}{s, R.\text{approver\_pk}}$; \textbf{reject}
+             if unresolvable
       \State \textbf{reject} unless $\mathit{cert}_R$ passes the phase-5
              checks with kind \texttt{approver}
       \State \textbf{reject} unless $R$ verifies under
@@ -1081,7 +1096,13 @@ $(\text{invoker public key}, \text{nonce})$. Chains whose key is
 already present in the cache are rejected as replays. A chain is
 accepted only if inserting its key into the cache succeeds, with TTL
 equal to the chain's remaining validity window plus a clock-skew
-tolerance.
+tolerance. Line 13 applies no tolerance of its own: a chain is valid
+exactly within $[B_N.\text{nbf}, B_N.\text{exp}]$ as the verifier's
+clock reads it, and senders must allow for skew when they set those
+bounds. The tolerance in the TTL has a different purpose. Instances of
+one logical verifier that share the cache may disagree about the time.
+The added term must be at least that disagreement, so that no instance
+evicts a chain's entry while another could still accept the chain.
 
 The lookup in phase 3 is only an early filter. What actually prevents
 replay is that the final insertion is atomic and fails if the key is
@@ -1235,8 +1256,9 @@ check is the only thing left to establish, and the work is warranted.
 \caption{Phase ordering in \cref{alg:verify,alg:verify2}. Cheap checks
 run first, so
 that a chain which cannot succeed is discarded before the verifier
-performs any pairing. No verifier state is modified until the final
-phase has passed.}
+performs any pairing. No state that affects a later decision changes
+until the final phase has passed; certificate and policy caches may be
+filled earlier.}
 \label{fig:phases}
 \end{figure}
 
@@ -1409,10 +1431,9 @@ Implementations should use library-provided subgroup checks (e.g.,
 
 Verifiers resolve an identifier, together with the public key that the
 body being checked names for it, by querying the issuing registry's
-resolution endpoint. Resolution returns the certificate binding that
-identifier to that key. Registries issue at most one certificate for any
-such pair, so renewing without a new key replaces the certificate rather
-than adding one. Whether the certificate is valid at verification time
+resolution endpoint. Resolution returns the most recently issued
+certificate binding that identifier to that key, whether or not it is
+currently valid. Whether the certificate is valid at verification time
 --- not yet valid, expired, or revoked --- is decided by the verifier,
 at line 27 of \cref{alg:verify}, not by the resolver. During the overlap of a scheduled rotation
 (\cref{sec:identity-rotation}) two certificates for one identifier are
@@ -1682,9 +1703,6 @@ identifier ::= letter (letter | digit | "_" | "-")*
 value    ::= integer | string | boolean
 list-value ::= "[" value ("," value)* "]"
 string-value ::= string
-string   ::= '"' (char | '\"' | '\\')* '"'
-integer  ::= "-"? digit+
-boolean  ::= "true" | "false"
 \end{lstlisting}
 
 A scope is either a special form (\texttt{allow all}, \texttt{deny all})
@@ -1700,7 +1718,12 @@ its kind must be \texttt{service} in an \texttt{at} clause and
 breaks either rule is malformed. The semantics of a scope is the union of the
 invocations permitted by its rules; \texttt{deny all} permits nothing,
 and \texttt{allow all} is a reserved form used for top-level trusted
-contexts (e.g., the issuer's session-issuance authority).
+contexts (e.g., the issuer's session-issuance authority). It permits
+every audience as well as every tool and action, so the mandatory
+audience clause does not constrain it. A verifier that pins
+\texttt{allow all} for a partner accepts that partner's sessions for
+anything addressed to it, with no policy limiting them, so it is not
+meant to be pinned across organizations.
 
 The condition language inside \texttt{where} clauses is
 \emph{conjunctive}: a clause is a conjunction of atomic predicates over
@@ -1721,48 +1744,58 @@ match one invocation, and the containment procedure of
 whose values are text strings, would do exactly that. Path-prefix
 containment is therefore an operator on strings rather than a type.
 \texttt{p under q} holds when the value of string parameter
-\texttt{p} is an absolute path in canonical form --- no empty,
-\texttt{.} or \texttt{..} segments --- and \texttt{q} is a prefix of it
-segment by segment. The canonical-form condition is not optional:
+\texttt{p} is a canonical absolute path and the segments of \texttt{q}
+are a prefix of its segments, equality included. A canonical absolute
+path starts with \texttt{/}; it is either \texttt{/} alone or
+\texttt{/} followed by non-empty segments joined by \texttt{/}; no
+segment is \texttt{.} or \texttt{..}; and there is no trailing
+\texttt{/}. A non-canonical value makes the atom false. The canonical-form condition is not optional:
 without it, \texttt{/home/agent/workspace/../../etc/passwd} would pass
 a check for \texttt{under "/home/agent/workspace"}. The literal
 \texttt{q} must itself be a canonical absolute path. A policy containing
 a non-canonical one is malformed and rejected when it is loaded, since
 such a prefix would otherwise silently match nothing.
 
-In the grammar, \texttt{char} is any Unicode scalar value other than a
-double quote or backslash, and string literals are NFC-normalized, like
-the text values they are compared with (\cref{sec:protocol-params}).
+\paragraph{Lexical details.}
+Whitespace is insignificant. Strings are double-quoted, with JSON
+escapes. Integers are decimal, with an optional leading \texttt{-}, and
+lie in the CBOR integer range $[-2^{64}, 2^{64}-1]$. Booleans are
+\texttt{true} and \texttt{false}. In identifiers, \texttt{letter} is
+\texttt{[A-Za-z]} and \texttt{digit} is \texttt{[0-9]}, which rules out
+Unicode confusables and makes normalization irrelevant for identifiers.
+String literals are NFC-normalized, like the text values they are
+compared with (\cref{sec:protocol-params}), and the string operators
+compare bytewise.
 
 \paragraph{Well-formedness.}
 The grammar admits scopes that make no sense, and the procedures of
 \cref{sec:policy-eval,sec:policy-subset} are defined only for
-well-formed ones. A rule is \emph{well-formed} when four conditions
+well-formed ones. A rule is \emph{well-formed} when three conditions
 hold.
 \begin{enumerate}
     \item Every path its \texttt{where} clause mentions is declared in
-          its \texttt{params}, and no path is declared twice.
-    \item Each atom applies an operator that the declared type of its
-          path admits, with a literal of that type, as in the table
-          below.
+          its \texttt{params}. No path is declared twice, and no
+          declared path is a strict prefix of another (\texttt{a}
+          together with \texttt{a.b}).
+    \item Every atom pairs its operator, the declared type of its path
+          and its operand as in the table below. Any other combination
+          is malformed.
     \item The principal in its \texttt{at} clause has kind
           \texttt{service}, and those in its \texttt{approval} clause
           have kind \texttt{approver}.
-    \item The literal of every \texttt{under} atom is a canonical
-          absolute path.
 \end{enumerate}
 \begin{center}
 \small
 \begin{tabular}{@{}lll@{}}
 \toprule
-Declared type & Operators & Literal \\
+Operator & Path type & Operand \\
 \midrule
-\texttt{int}    & \texttt{<} \ \texttt{<=} \ \texttt{==} \ \texttt{>=} \ \texttt{>};
-                  \ \texttt{in} & integer; list of integers \\
-\texttt{string} & \texttt{==} \ \texttt{starts\_with} \ \texttt{ends\_with}
-                  \ \texttt{contains}; \ \texttt{in} & string; list of strings \\
-                & \texttt{under} & canonical absolute path \\
-\texttt{bool}   & \texttt{==}; \ \texttt{in} & boolean; list of booleans \\
+\texttt{<} \ \texttt{<=} \ \texttt{>=} \ \texttt{>} & \texttt{int} & integer \\
+\texttt{==} & any & a literal of the path's type \\
+\texttt{starts\_with} \ \texttt{ends\_with} \ \texttt{contains}
+            & \texttt{string} & string \\
+\texttt{in} & any & a non-empty list, every element of the path's type \\
+\texttt{under} & \texttt{string} & a canonical absolute path \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1770,9 +1803,15 @@ The operator \texttt{==} appears in both \texttt{numop} and
 \texttt{strop}; the declared type of the path decides which is meant. A
 scope is well-formed when all of its rules are, and a scope that
 violates any of these conditions is \emph{malformed}.
-\textsc{LoadPolicy} rejects a malformed policy, and the containment
-procedure of \cref{sec:policy-subset} returns false when either scope is
-malformed, so a malformed scope in a token causes rejection in phase 6.
+\textsc{LoadPolicy} rejects a malformed policy. A malformed scope inside
+a session or delegation body makes that body malformed, and the chain is
+rejected when it is decoded, at line 2 of \cref{alg:verify}. The
+containment procedure of \cref{sec:policy-subset} also returns false on a
+malformed scope, as a defensive check that a decoded chain never
+reaches. Implementations also bound the size of a scope --- its rules,
+parameters, atoms, list lengths, text lengths and path depth --- so that
+evaluation and containment stay bounded on input the sender chooses;
+those bounds belong in a normative specification.
 One consequence is used in \cref{prop:decidability}. In a well-formed
 rule, every path the clause mentions is declared, so it is present in
 any invocation that passes the rule's closed-world check, and step 1(c)
@@ -2361,8 +2400,10 @@ $(\pk_N, \text{nonce})$ pair. The insertion is atomic, so of any number
 of chains carrying the same pair, whether presented one after another or
 concurrently, at most one insertion succeeds while the pair remains in
 the cache; the phase-3 lookup only rejects some replays earlier. The
-cache TTL is the validity window plus clock-skew tolerance, so the pair
-is not evicted while a replay could still pass the temporal checks, and
+cache TTL is the validity window plus a tolerance at least as large as
+the clock disagreement among the instances sharing the cache, so the
+pair is not evicted while a replay could still pass the temporal checks
+at any of them, and
 outside the window the verifier rejects on the expiry check before any
 signature verification. For the second part, the invocation body names
 its verifier in \texttt{aud}, which is part of $m_N$. Phase 1 rejects a
@@ -2382,8 +2423,8 @@ except with negligible probability.
 
 \begin{proof}[Proof sketch]
 The approval body signed by the approval service includes
-\texttt{invocation\_digest}, a hash of the invocation body without the
-approval reference itself. Modification of the invocation changes
+the invocation digest of \cref{sec:protocol-approvals}, a tagged hash of
+the invocation body without its receipts. Modification of the invocation changes
 this digest, invalidating the receipt under BLS unforgeability. Phase 7
 checks each receipt under the key the registry currently certifies for
 the service it names, with kind \texttt{approver}, so a receipt signed
