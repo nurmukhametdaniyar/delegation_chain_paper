@@ -1011,8 +1011,9 @@ temporal, and identity checks. Phases run cheapest-first; every
     \State \textbf{reject} unless $\mathit{cert}_k.\text{kind} =
            \mathrm{role}(k)$
            \Comment{role fixed by position}
-    \State \textbf{reject} if $\mathit{cert}_k$ is not yet valid, expired,
-           or revoked at $t$
+    \State \textbf{reject} unless $t \in [\,\mathit{cert}_k.\text{nbf},\,
+           \mathit{cert}_k.\text{exp}\,]$ and $\mathit{cert}_k$ is not
+           revoked at $t$
     \State $\pk_k \gets \mathit{cert}_k.\text{pk}$
            \Comment{equals $\mathrm{spk}(B_k)$ by resolution}
   \EndFor
@@ -2069,14 +2070,32 @@ membership is over fixed lists, and path-prefix containment is over
 fixed prefixes. Atoms over distinct paths are independent, so a
 conjunction $C_2 = \bigwedge_j a_j$ implies a conjunction
 $C_1 = \bigwedge_i b_i$ exactly when, for each $b_i$, those atoms of
-$C_2$ over the same path as $b_i$ jointly imply $b_i$. For each of the
-four atom forms this is a closed-form check on the constraint the atoms
-induce on that path: an interval for numeric comparisons, a set of
-admissible values for membership, and a prefix or substring relation for
-the string and path operators. Joint satisfiability, needed by step
-3(b), is the same analysis: a conjunction is unsatisfiable exactly when
-the constraints induced on some path are inconsistent. No search over
-truth assignments is required at any point.
+$C_2$ over the same path as $b_i$ jointly imply $b_i$. Joint
+satisfiability, needed by step 3(b), decomposes the same way: a
+conjunction is unsatisfiable exactly when the constraints induced on
+some path are inconsistent.
+
+The per-path checks are exact for integer and boolean paths, and for
+string paths whose value is confined to a finite set by \texttt{==} or
+\texttt{in}. There the atoms induce an interval, a finite set, or both,
+and implication and satisfiability are decided by inspecting them. For
+string paths without such a set --- constraints that combine
+\texttt{starts\_with}, \texttt{ends\_with}, \texttt{contains} and
+\texttt{under} --- we do not have an exact procedure, and the checks are
+sound but incomplete. Implication is reported only when a single
+constraint already forces the atom (a longer required prefix implies a
+shorter one, for instance). A conjunction is reported unsatisfiable only
+when two of its constraints are directly incompatible (two required
+prefixes, neither a prefix of the other, for instance). Each check
+therefore errs only in the direction containment can tolerate. A missed
+implication stops step 3(a) or the skip condition from applying, and a
+missed contradiction makes step 3(b) examine a rule it could have
+ignored; either way the result can only be a rejection. An atom on a path
+the other clause does not constrain is judged against the unconstrained
+domain of the path's declared type. That is sound because, by
+well-formedness, every path a clause mentions is declared, and the rules
+being compared have identical declarations. No search over truth
+assignments is required at any point.
 
 \begin{proposition}[Soundness and cost of the containment procedure]
 \label{prop:decidability}
@@ -2092,10 +2111,12 @@ $|S_1| \cdot |S_2|$. Each pair check compares two identifiers, compares
 two parameter declarations for equality, compares two approval
 requirements, and decides implication between two conjunctions of
 atoms. The last of these groups the atoms of each clause by path and,
-for each atom of $r_1$'s clause, evaluates a closed-form implication
-against the constraint that $r_2$'s atoms induce on the same path; the
-number of such checks is bounded by the product of the two atom counts,
-and each is constant-time in the atom's operands. Step 3(b) performs a
+for each atom of $r_1$'s clause, evaluates an implication check against
+the constraint that $r_2$'s atoms induce on the same path. The number of
+such checks is bounded by the product of the two atom counts, and each
+takes time polynomial in the sizes of the atoms involved: linear in the
+literals for the string checks, and in the list lengths for
+membership. Step 3(b) performs a
 satisfiability check of the same form over the same pairs, and its skip
 condition adds, for each $r_2$, at most one implication check per pair
 of a rule of $S_1$ and a rule of $S_2$. The total is polynomial in
@@ -2152,7 +2173,11 @@ delegations and accepts no illegitimate ones --- and we prefer that
 direction of error. Deciding \cref{def:subset} exactly would require
 reasoning about unions of rules, which the per-rule structure of the
 procedure does not support; we leave it open whether the exact relation
-admits an efficient decision procedure for this language.
+admits an efficient decision procedure for this language. String
+constraints are a second, independent source of incompleteness: for
+string paths without a finite set of admissible values, the per-path
+implication and satisfiability checks are themselves incomplete
+(\cref{sec:policy-subset}), in the same conservative direction.
 \end{remark}
 
 \subsection{Limitations of the Policy Language}
