@@ -1012,8 +1012,8 @@ temporal, and identity checks. Phases run cheapest-first; every
            \mathrm{role}(k)$
            \Comment{role fixed by position}
     \State \textbf{reject} unless $t \in [\,\mathit{cert}_k.\text{nbf},\,
-           \mathit{cert}_k.\text{exp}\,]$ and $\mathit{cert}_k$ is not
-           revoked at $t$
+           \mathit{cert}_k.\text{exp}\,]$ and
+           $(\mathrm{sid}(B_k), \mathrm{spk}(B_k))$ is not revoked at $t$
     \State $\pk_k \gets \mathit{cert}_k.\text{pk}$
            \Comment{equals $\mathrm{spk}(B_k)$ by resolution}
   \EndFor
@@ -1220,6 +1220,24 @@ a chain that is well-formed, unexpired, non-replayed, key-consistent,
 scope-monotone, and policy-compliant --- at which point the aggregate
 check is the only thing left to establish, and the work is warranted.
 
+That argument holds for a verifier that already has the chain's
+certificates cached. On a cold verifier, phase 5 verifies each signer's
+certificate under its registry root (line 24). With BLS roots, each such
+verification is itself a two-pairing check, so a chain can cost up to
+$N+1$ certificate verifications before the policy checks of phase 6
+reject it. The cost is bounded per binding. A certificate that verifies
+is cached, so each identifier--key binding costs at most one
+verification per cache lifetime, and a binding that does not exist
+resolves to nothing and costs none. The bound does not cover
+certificates that fail verification, which are not cached. An adversary
+able to make resolution return an invalid certificate --- a misbehaving
+registry, or the network adversary of \cref{sec:threat-adversary} on the
+resolution path --- can force that verification on every chain. The
+policy checks of lines 30--37 need no certificates, and running them
+before identity resolution would remove the cold-path cost. That
+reordering renumbers the algorithm, so we leave it to a revision
+informed by measurement (\cref{sec:limitations}).
+
 \begin{figure}[t]
 \centering
 \begin{tikzpicture}[
@@ -1233,7 +1251,7 @@ check is the only thing left to establish, and the work is warranted.
   2/-0.95/{2. Temporal window and expiry order},
   3/-1.90/{3. Replay (nonce cache lookup)},
   4/-2.85/{4. Public key chain consistency},
-  5/-3.80/{5. Identity resolution (may query registry)},
+  5/-3.80/{5. Identity resolution (cold: query, pairings)},
   6/-4.75/{6. Scope containment and policy evaluation},
   7/-5.70/{7. Approval receipts (two-pairing check each)},
   8/-6.65/{8. Aggregate multi-pairing ($N{+}2$ pairings)}}
@@ -1257,7 +1275,9 @@ check is the only thing left to establish, and the work is warranted.
 \caption{Phase ordering in \cref{alg:verify,alg:verify2}. Cheap checks
 run first, so
 that a chain which cannot succeed is discarded before the verifier
-performs any pairing. No state that affects a later decision changes
+performs any pairing, provided the chain's certificates are cached; on a
+cold verifier, phase 5's certificate checks are pairings too
+(\cref{sec:protocol-verification}). No state that affects a later decision changes
 until the final phase has passed; certificate and policy caches may be
 filled earlier.}
 \label{fig:phases}
@@ -1469,8 +1489,9 @@ Verifiers cache resolved certificates to avoid registry queries on
 every verification. Cache entries are valid until the earlier of the
 certificate's expiry and a configurable cache TTL (typically one
 hour). Cache invalidation is event-driven for revocation: observation
-of a revocation assertion immediately evicts the corresponding cached
-entry.
+of a revocation assertion immediately evicts every cached certificate
+for the identifier--key binding it names, so a verifier holding an older
+certificate for a revoked binding cannot go on accepting it.
 
 \paragraph{Policy resolution.}
 The verifier must also hold the policy that a session token's
@@ -1545,8 +1566,15 @@ defense-in-depth mechanism for deployments choosing longer-lived
 certificates.
 
 A \emph{revocation assertion} is a signed statement by a registry
-declaring that a specific certificate is revoked, identified by serial
-number. Verifiers learn of assertions through polling (default
+declaring that an identifier--key binding is revoked. It names the
+binding, not a certificate, and revokes every certificate for it,
+including renewals issued for the same key. Naming a single certificate
+would not be enough. Short-lived certificates are routinely renewed
+under the same key, so one binding can have several unexpired
+certificates at once, and revoking one of them would leave the key
+accepted under the others. Registries must not re-certify a revoked
+binding, and a registry that learns a key is compromised must revoke it
+under every identifier to which it has certified that key. Verifiers learn of assertions through polling (default
 interval 60 seconds), push notification, or transparency log
 monitoring; the choice is a deployment decision. The end-to-end window
 between key compromise and unforgeability is bounded by the sum of
@@ -1559,7 +1587,7 @@ nothing in the design constrains them. The property claimed in
 \cref{sec:threat-properties} is accordingly bounded revocation
 \emph{propagation}, not bounded exposure.
 
-Revocation applies relative to \emph{verification time}. A certificate
+Revocation applies relative to \emph{verification time}. A binding
 revoked at time $t_r$ is not accepted by any verifier that has learned
 of the revocation, including for chains whose tokens were signed before
 $t_r$. The gentler alternative --- continuing to honor chains signed
@@ -2177,7 +2205,17 @@ admits an efficient decision procedure for this language. String
 constraints are a second, independent source of incompleteness: for
 string paths without a finite set of admissible values, the per-path
 implication and satisfiability checks are themselves incomplete
-(\cref{sec:policy-subset}), in the same conservative direction.
+(\cref{sec:policy-subset}), in the same conservative direction. Two
+further sources come from the shape of the procedure. First, a child
+rule that can never decide an invocation --- because its clause is
+unsatisfiable, or because earlier child rules catch everything it
+matches --- must still be subsumed by some parent rule. It is rejected
+if no parent rule with the same audience, tool, action and declaration
+has an approval requirement weak enough, although the rule is harmless.
+Second, the skip test of step 3(b) asks that the whole of $r'$'s clause
+imply the clause of a single earlier child rule. It would be enough that
+every invocation matched by both $r'$ and $r_2$ is decided by earlier
+child rules taken together.
 \end{remark}
 
 \subsection{Limitations of the Policy Language}
@@ -2992,7 +3030,14 @@ fetch to first use pays a round trip, on that call. In the steady state --- a pa
 certificates and policies are already cached --- verification touches
 none of these and is genuinely local. On a cold cache it is not, and
 statements elsewhere in this paper about offline verification should be
-read with that scope.
+read with that scope. A cold cache also costs computation. Phase 5
+verifies each certificate it resolves, so a verifier with nothing cached
+performs pairings before its policy checks run
+(\cref{sec:protocol-verification}), and certificates that fail
+verification are not cached and cost the same again on every chain.
+Moving the policy checks, which need no certificates, ahead of identity
+resolution would remove this. We defer that reordering until the
+measurements of \cref{sec:future-work} are available.
 
 The obvious repair is to carry certificates in the chain, as X.509 does,
 so that a verifier needs the registry root key but not the registry.
