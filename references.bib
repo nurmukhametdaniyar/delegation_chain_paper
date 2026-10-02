@@ -1,6 +1,7 @@
 % ============================================================
 % DelegationChain paper — references
-% Last verified: 2026-09-27 (llambi2026cva and the RFC Editor status of
+% Last verified: 2026-10-01 for the entries added that day (see the end of
+% the file); the rest 2026-09-27 (llambi2026cva and the RFC Editor status of
 % oauth-identity-chaining rechecked the same day, later pass)
 % Every entry checked against an original source (publisher or
 % Crossref record, RFC Editor info page, IETF Datatracker, arXiv
@@ -436,4 +437,91 @@
   year    = {2026},
   month   = may,
   url     = {https://arxiv.org/abs/2605.24248},
+}
+
+% ---------------- Added 2026-10-01: post-benchmark revision ----------------
+% Each checked on 2026-10-01 against the source named in its comment.
+
+% RFC Editor info page: title, authors, January 2017, DOI, Informational.
+@misc{rfc8032,
+  author       = {Simon Josefsson and Ilari Liusvaara},
+  title        = {Edwards-Curve Digital Signature Algorithm ({EdDSA})},
+  howpublished = {RFC 8032},
+  year         = {2017},
+  month        = jan,
+  publisher    = {Internet Engineering Task Force},
+  doi          = {10.17487/RFC8032},
+}
+
+% Checked against the paper (IACR ePrint 2020/823, Table 2): Ed25519 is
+% EUF-CMA; the RFC 8032 variant (S < L) is SUF-CMA; additionally rejecting
+% small-order R and A gives key-substitution resistance (M-S-UEO) and
+% message-bound security. Venue, pages and DOI from the CISPA record.
+@inproceedings{brendel2021ed25519,
+  author    = {Jacqueline Brendel and Cas Cremers and Dennis Jackson and
+               Mang Zhao},
+  title     = {The Provable Security of {Ed25519}: Theory and Practice},
+  booktitle = {2021 IEEE Symposium on Security and Privacy (SP)},
+  year      = {2021},
+  pages     = {1659--1676},
+  publisher = {IEEE},
+  doi       = {10.1109/SP40001.2021.00042},
+}
+
+% NIST CSRC page: title, 13 August 2024, DOI.
+@techreport{fips204,
+  author      = {{National Institute of Standards and Technology}},
+  title       = {Module-Lattice-Based Digital Signature Standard},
+  institution = {National Institute of Standards and Technology},
+  type        = {Federal Information Processing Standard},
+  number      = {FIPS 204},
+  year        = {2024},
+  month       = aug,
+  doi         = {10.6028/NIST.FIPS.204},
+}
+
+% Software citations. Versions are those pinned in the benchmark
+% (BENCHMARKS.md §1); each checked on crates.io (version, publication
+% date, repository).
+@software{blst-0.3.17,
+  author  = {{Supranational}},
+  title   = {blst: multilingual BLS12-381 signature library},
+  version = {0.3.17},
+  year    = {2026},
+  month   = jul,
+  url     = {https://github.com/supranational/blst},
+  note    = {Rust crate \texttt{blst} 0.3.17},
+}
+
+@software{ed25519-dalek-2.2.0,
+  author  = {{dalek-cryptography}},
+  title   = {ed25519-dalek: Ed25519 key generation, signing, and
+             verification in pure Rust},
+  version = {2.2.0},
+  year    = {2025},
+  month   = jul,
+  url     = {https://github.com/dalek-cryptography/curve25519-dalek},
+  note    = {Rust crate \texttt{ed25519-dalek} 2.2.0},
+}
+
+@software{biscuit-auth-6.0.0,
+  author  = {{Eclipse Biscuit Project}},
+  title   = {biscuit-auth: the Rust implementation of Biscuit},
+  version = {6.0.0},
+  year    = {2025},
+  month   = jul,
+  url     = {https://github.com/biscuit-auth/biscuit-rust},
+  note    = {Rust crate \texttt{biscuit-auth} 6.0.0},
+}
+
+% GitHub API: commit ad2faa62420af75ca26b235fb698a671281d1ade,
+% "paper: prepare arXiv submission package", 2026-03-25.
+@software{aip-code-ad2faa6,
+  author  = {Sunil Prakash},
+  title   = {{AIP}: Agent Identity Protocol, reference implementation and
+             benchmarks},
+  year    = {2026},
+  month   = mar,
+  url     = {https://github.com/sunilp/aip},
+  note    = {Commit \texttt{ad2faa6}, the arXiv submission commit},
 }
