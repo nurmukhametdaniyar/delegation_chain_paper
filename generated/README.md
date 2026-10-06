@@ -8,8 +8,10 @@ byte-for-byte so that the paper builds from a clean clone.
 
 - Never edit a cell or a figure by hand. If one is wrong, fix the
   generator, regenerate, and copy again.
-- To refresh: copy `paper/tables/*.tex` and `paper/figures/*.pdf` from
-  the implementation repository over these files, then rebuild.
+- To refresh: copy `paper/tables/` and `paper/figures/` (including both
+  `captions.tex` files) from the implementation repository over these
+  files, then rebuild.
 
-Copied on 2026-10-01 from implementation commit `8ffe91b`
-("Paper artifacts (D-78) and ARTIFACT.md").
+Copied on 2026-10-04 from implementation commit `25242b8`
+("The cost of D-81's encoding checks: an exploratory micro-benchmark
+(D-87), not run yet").

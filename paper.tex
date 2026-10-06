@@ -971,7 +971,7 @@ temporal, and identity checks. Phases run cheapest-first; every
 \begin{algorithmic}[1]
 \Procedure{Verify}{received chain $C$, current time $t$}
   \LComment{Phase 1 --- structure and encoding}
-  \State $(B_0,\ldots,B_N,\sigma_{\text{agg}}) \gets \Call{Decode}{C}$;
+  \State $(B_0,\ldots,B_N,\sigma) \gets \Call{Decode}{C}$;
          \textbf{reject} if decoding fails
   \State \textbf{reject} if $N < 1$
   \ForAll{$B_k$}
@@ -1275,9 +1275,16 @@ implementation that applies the integer-key rule to parameter maps will
 not interoperate with one that does not. Float and tagged values are
 disallowed in protocol structures except where explicitly required.
 Ed25519 public keys and signatures use their RFC~8032 encodings
-\citep{rfc8032}. Decoders reject non-canonical encodings and small-order
-public keys, and strict verification also rejects a signature whose $R$
-is of small order. The encoding of BLS group elements is part of the
+\citep{rfc8032}. A non-canonical signature encoding, an $R$ whose
+$y$-coordinate is not reduced or an $S$ with $S \geq L$, is a decoding
+failure: in a chain or a receipt, line 2 rejects it. A non-canonical or
+small-order public key is rejected when the structure that carries it
+as a key is decoded: by the registry at registration
+(\cref{sec:identity-pop}), and by the verifier when it checks a
+certificate (line 24). Key fields in token bodies are compared as bytes
+with the resolved certificate's key and never used as points. Strict
+verification also rejects a signature whose $R$ is of small order, at
+line 49. The encoding of BLS group elements is part of the
 aggregate variant (\cref{sec:aggregate-variant}).
 
 Verifiers reject any structure whose received encoding differs from
@@ -1624,7 +1631,11 @@ assertion only from the registry whose namespace contains the identifier
 it names, as for certificates (\cref{sec:identity-resolution}). A
 verifier retains a revoked binding until every certificate for it has
 expired: for the registry's maximum certificate lifetime after the
-revocation, plus a bound on clock skew. Verifiers learn of assertions through polling (default
+revocation, plus a bound on clock skew. The skew bound is set per
+deployment; it bounds the same quantity as the clock-skew tolerance in
+the nonce cache's TTL (\cref{sec:protocol-verification}), and the
+reference implementation uses one value, 60 seconds, for both.
+Verifiers learn of assertions through polling (default
 interval 60 seconds), push notification, or transparency log
 monitoring; the choice is a deployment decision. The end-to-end window
 between key compromise and unforgeability is bounded by the sum of
@@ -2742,9 +2753,11 @@ Every threat of \cref{sec:threat-model}, from \threatref{1a} to
 \threatref{6b}, has at least one test, as do the closed-world rule, the
 structural checks, key-chain consistency and resolution, and phase
 ordering. Each test asserts the exact algorithm line that rejects the
-attack, or acceptance where the threat is only bounded. All 52 tests
-passed when the suite's table was generated; \cref{app:security-suite}
-lists them.
+attack, or acceptance where the threat is only bounded. The suite runs
+under both instantiations: each runs 52 tests, 50 shared and 2 specific
+to it (54 distinct), and all passed under both when the suite's table
+was generated. \Cref{app:security-suite} lists them, with the
+concurrent-replay test below, which also runs under both.
 
 \paragraph{Concurrent replay.}
 \Cref{thm:replay} was tested with 64 threads presenting the same chain
@@ -2909,7 +2922,14 @@ benefit. It is not a net benefit in any cell, with caching or without.
 B is 12.2--24.2$\times$ slower than D, and warm A is 4.9--16.0$\times$
 slower than C and 5.8--19.5$\times$ slower than C-batch, in all 16 cells
 of each comparison. No $N$ from 1 to 10 reverses this, although the gap
-narrows as $N$ grows. \pending{ratio figure}
+narrows as $N$ grows (\cref{fig:ratios}).
+
+\begin{figure}[t]
+\centering
+\genfigure[width=0.8\linewidth]{ratios}
+\caption{\figcapRatios}
+\label{fig:ratios}
+\end{figure}
 
 \begin{table}[t]
 \centering
@@ -2925,10 +2945,7 @@ same verdict holds for B/D in the prefix-miss state.}
 \begin{figure}[t]
 \centering
 \genfigure[width=0.8\linewidth]{latency_warm_medium}
-\caption{Warm median verification latency against $N$, medium profile,
-log scale: arms A (aggregate BLS), A-ind (individual BLS), C (Ed25519)
-and C-batch (Ed25519, batch verification). Points are pooled medians of
-three runs; error bars are the range of the three runs' medians.}
+\caption{\figcapLatencyWarm}
 \label{fig:latency-warm}
 \end{figure}
 
@@ -2946,10 +2963,7 @@ without the prefix cache and 26.4~\textmu{}s with it.
 \begin{figure}[t]
 \centering
 \genfigure[width=0.8\linewidth]{prefix_hit_medium}
-\caption{Median latency of a prefix-cache hit against $N$, medium
-profile, log scale: arm B (BLS with pairing and prefix caches) and arm D
-(Ed25519 with a prefix cache). Points are pooled medians of three runs;
-error bars are the range of the three runs' medians.}
+\caption{\figcapPrefixHit}
 \label{fig:prefix-hit}
 \end{figure}
 
@@ -2969,10 +2983,7 @@ Ed25519's are 32 bytes, and the bodies, with their policies, dominate.
 \begin{figure}[t]
 \centering
 \genfigure[width=0.8\linewidth]{bytes_medium}
-\caption{Chain size in bytes against $N$, medium profile: arms A, A-ind
-and C. The dashed line marks the break-even: A's chain is smaller than
-C's from $N = 2$. Sizes are means over 20 sampled chains and do not vary
-between runs, so there are no error bars.}
+\caption{\figcapBytes}
 \label{fig:bytes}
 \end{figure}
 
@@ -3034,14 +3045,10 @@ warm verifier, but a cold one verifies $N + 1$ certificates first, and
 \begin{table}[t]
 \centering
 \small
-\caption{Design claims and their verdicts, judged against the design as
-specified before measurement, with criteria fixed when the plan was
-frozen. The ``Paper'' column refers to that text's section numbers: its
-\S2.2, \S4.3 and \S4.6 are this paper's \cref{sec:bg-bls},
-\cref{sec:protocol-digest} and \cref{sec:protocol-verification}, and its
-\S8.2 and \S8.3 are \cref{sec:limitations,sec:future-work}. In the
-evidence column, ``the \S6 rule'' is the verdict rule of
-\cref{sec:eval-method}.}
+\caption{Design claims and their verdicts. The claims and the criteria
+for judging them were fixed when the plan was frozen, and the verdicts
+were judged against the text as it stood then. The ``Paper'' column
+gives the section of this paper where each claim now stands.}
 \label{tab:claims}
 \resizebox{\linewidth}{!}{\begin{minipage}{1.25\linewidth}\gentable{claims}\end{minipage}}
 \end{table}
@@ -3062,20 +3069,60 @@ large one. The two do not time the same operation. AIP's code
 base64, verifies every block's signature twice, parses its authorizer
 from Datalog text on each call, and reports the mean of 100 single
 timings, each after creating a fresh token, on an older chip. That
-explains the direction of the gap and part of its size; the rest is
-unexplained. \pending{AIP benchmark re-run}
+explains the direction of the gap and part of its size. To separate the
+rest, AIP's own benchmark was run unmodified on this machine, outside
+the plan. By AIP's own statistic, its code took 0.44--0.46 of AIP's
+published times here. Both sides run the same code, so that factor
+cannot come from what is timed; it may come from the chip, the build,
+the toolchain or the operating system, which the run cannot tell apart.
+Against AIP's code on this machine, arm E took 0.60--0.82 of its time
+(0.60--0.64 in the small profile, 0.75--0.82 in the medium one), within
+the factor of 3 that the plan set as a sanity bound for this
+comparison. AIP's method is also sensitive to a cold start: in each
+build, the first process ran slower than the next two at the shallowest
+depths, and each of AIP's published figures comes from a single such
+process.
 
 Exploratory, and on the same machine, the default instantiation's
 verification --- which also checks parameter binding, receipts,
-revocation and replay --- takes \pending{x}~\textmu{}s, against
-\pending{y}~\textmu{}s for Biscuit's chained-token verification at
-matching depth. \pending{positioning table}
+revocation and replay --- takes 109~\textmu{}s at $N = 3$ in the medium
+profile, against 147~\textmu{}s for Biscuit's chained-token verification
+at matching depth (\cref{tab:positioning}). Across $N$ it takes
+0.68--0.86 of arm E's time, and with a prefix-cache hit 0.08--0.40.
+
+\begin{table}[t]
+\centering
+\small
+\caption{\tabcapPositioning}
+\label{tab:positioning}
+\resizebox{\linewidth}{!}{\gentable{positioning}}
+\end{table}
 
 \subsection{Where Verification Time Goes (exploratory)}
 \label{sec:eval-phases}
 
-\pending{phase breakdown of warm verification, arms A and C, N = 3;
-BENCHMARKS.md \S8}
+A separately instrumented build, never used for the results above,
+timed each phase of a warm verification at $N = 3$ for arms A and C in
+the small, medium and large profiles, over three runs on the same chains
+as the main measurement. The phases fall into five categories:
+decoding (line 2 and the canonical-form check, lines 4--6); policy
+(\textsc{Contains} and \textsc{Evaluate}, lines 32--37); identity
+(certificate lookup and checks, lines 23--28, without their
+cryptography); cryptography (point validation, the chain digests of
+lines 47--48, and signature verification at lines 24, 43 and 49); and
+everything else. We report each category's share of the sum of the
+category medians. The shares agree across runs to within 0.7 percentage
+points; the absolute times vary more, and we do not report them.
+
+Under the aggregate variant (arm A), cryptography is 88.1--99.1\% of a
+warm call across the profiles, decoding 0.7--6.1\% and policy
+0.0--4.8\%. Under the default instantiation (arm C), cryptography's
+share falls as the policy grows, from 90.1\% in the small profile to
+39.1\% in the large one, where decoding takes 30.9\% and policy
+25.2\%. Identity is at most 0.2\% in any configuration: with cached
+certificates, lines 23--28 are lookups. The calibration probe flagged 5
+of the 18 configurations, and none was re-run; at that rate, the main
+measurement's safety valve would have aborted the run.
 
 \subsection{Threats to Validity}
 \label{sec:eval-threats}
@@ -3093,7 +3140,11 @@ The registry is in-process, and network latency was injected as sleeps,
 not measured over a network. The small and large policies and all
 workloads are synthetic; only the medium profile is the paper's own
 example. C-batch's batch verification has different semantics from
-strict verification at the edges. The multi-threaded supplementary arm
+strict verification at the edges. The measured binaries predate the
+canonical-encoding checks of \cref{sec:protocol-encoding}, which were
+added to the default instantiation's decoders after the measurement;
+their cost, measured separately, is \pending{encoding-check cost from
+BENCHMARKS.md \S8, once the implementation commits the run}. The multi-threaded supplementary arm
 warms the chip, so its own latencies include that thermal state; it
 appears in no headline ratio. The pooled confidence intervals are
 narrow because of pooling and understate between-run variation, which
@@ -3738,7 +3789,8 @@ plan, the decision and deviation logs, and the generators for every
 table and figure in \cref{sec:impl} are available at \repourl{}. The raw
 measurements are archived at \artifactdoi{}; \texttt{ARTIFACT.md} in
 the repository describes how to verify the archives and regenerate every
-table and figure from them.
+table and figure from them. Re-measuring under the frozen plan uses the
+measured commits that \texttt{ARTIFACT.md} names, not later builds.
 
 \printbibliography
 
@@ -3751,12 +3803,16 @@ table and figure from them.
 \cref{sec:eval-correctness}, grouped by threat. ``Asserted, in order''
 gives, for each test, the algorithm line whose rejection it asserts
 (L$n$ is line $n$ of \cref{alg:verify,alg:verify2}), in the order the
-test asserts them, or acceptance where a threat is only bounded.
-``Passed'' records the result of the test run that generated the table.
+test asserts them, or acceptance where a threat is only bounded. The
+last two columns record the result of the test run that generated the
+table under the default instantiation and under the aggregate variant;
+--- marks a test specific to the other instantiation.
 
 {\small
+\setlength{\tabcolsep}{4pt}% size wrapper only: the generated longtable cannot be resized
 \captionof{table}{The security suite: each test, the algorithm lines it
-asserts, and whether it passed in the run that generated the table.}
+asserts, and whether it passed under each instantiation in the run that
+generated the table.}
 \label{tab:security}
 \gentable{security}
 \addtocounter{table}{-1}% longtable steps the counter again
