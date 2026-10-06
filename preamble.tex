@@ -30,10 +30,10 @@
 
 % --- Post-benchmark revision: placeholders and generated inputs ---
 % \pending marks content whose input does not exist yet; never fill it in
-% by hand. \repourl and \artifactdoi stay placeholders until known.
+% by hand. \repourl and \artifactdoi give the code repository and the Zenodo deposit.
 \newcommand{\pending}[1]{\textcolor{red}{[PENDING: #1]}}
-\newcommand{\repourl}{\pending{repository URL}}
-\newcommand{\artifactdoi}{\pending{Zenodo DOI}}
+\newcommand{\repourl}{\url{https://github.com/nurmukhametdaniyar/delegation_chain}}
+\newcommand{\artifactdoi}{\href{https://doi.org/10.5281/zenodo.23192896}{doi:10.5281/zenodo.23192896}}
 % Generated tables and figures live in generated/ (copied byte-for-byte
 % from the benchmark harness; see generated/README.md).
 \newcommand{\gentable}[1]{\input{generated/tables/#1.tex}}
