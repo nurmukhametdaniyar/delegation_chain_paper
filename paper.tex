@@ -3140,16 +3140,23 @@ The registry is in-process, and network latency was injected as sleeps,
 not measured over a network. The small and large policies and all
 workloads are synthetic; only the medium profile is the paper's own
 example. C-batch's batch verification has different semantics from
-strict verification at the edges. The measured binaries predate the
-canonical-encoding checks of \cref{sec:protocol-encoding}, which were
-added to the default instantiation's decoders after the measurement;
-their cost, measured separately, is \pending{encoding-check cost from
-BENCHMARKS.md \S8, once the implementation commits the run}. The multi-threaded supplementary arm
+strict verification at the edges. The multi-threaded supplementary arm
 warms the chip, so its own latencies include that thermal state; it
 appears in no headline ratio. The pooled confidence intervals are
 narrow because of pooling and understate between-run variation, which
 the run-agreement rule guards against. Finally, arm E and AIP's
 published figures measure different operations.
+
+The measured binaries predate the canonical-encoding checks of
+\cref{sec:protocol-encoding}. We measured the checks separately, in an
+exploratory run on the same machine. They are byte comparisons costing
+a few nanoseconds per signature or key: about 1.9~ns per signature and
+1.2~ns per key on honest inputs, and at most about 11~ns on the worst
+inputs that pass. Across both arms of the default instantiation, every
+cache state, and $N \in \{1, 3, 10\}$, in the medium profile, they add
+under 0.1\% to any measured median latency on honest inputs, and under
+0.4\% on worst-case inputs. The measured latencies therefore stand as
+the protocol's cost.
 
 % ============================================================
 \section{Discussion}

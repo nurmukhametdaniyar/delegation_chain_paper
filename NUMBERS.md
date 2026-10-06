@@ -5,7 +5,9 @@ benchmark is listed here with its source. Generated tables (`generated/tables/*.
 (`generated/figures/*.pdf`) are included unedited and are not re-listed cell by cell.
 
 **Sources.**
-- Every row cites the implementation repository (`delegation_chain_impl`) at commit `25242b8`, its latest commit.
+- Every row cites the implementation repository (`delegation_chain_impl`) at commit `25242b8`, except rows 140–149.
+  - Those cite `c6bbbaa`, the commit that adds the encoding-check run.
+  - Its `BENCHMARKS.md` §8 block is identical at `60819a5`, the latest commit on 2026-10-06.
 - `BM` = `BENCHMARKS.md` at `25242b8`. Line numbers refer to that file.
 - `impl:` = any other file in the implementation repository at `25242b8`.
 - `gen:` = `generated/` in this repository, copied byte-for-byte from `impl:paper/` at `25242b8`.
@@ -16,7 +18,7 @@ benchmark is listed here with its source. Generated tables (`generated/tables/*.
     - `PAPER_ISSUES.md`, `DECISIONS.md` and `scripts/paper_figures.py` by their new text.
   - Lines whose wording changed but whose values did not are rows 61, 104 and 105: Q9's flag text and §7's resume note.
   - `BENCH_PLAN_FROZEN.md`, the test reports and `tests/concurrency.rs` are unchanged between the two commits.
-- **Not a source.** The encoding-check run's results exist only in the implementation's working tree (`BENCHMARKS.md` §8, uncommitted as of 2026-10-06). They are not used, and the paper leaves that number `\pending` (row 140).
+- **The encoding-check run** was committed in `c6bbbaa`, and §8.8 now reports it (rows 140–149).
 
 **Out of scope.** The following are not data and are not listed: section, RFC, algorithm-line and threat
 numbers; years; the policy example's literal values, which are unchanged from earlier revisions; and the
@@ -217,4 +219,13 @@ numbers; years; the policy example's literal values, which are unchanged from ea
 | 137 | Alg. 1 line 2 (P-31) | (B_0,…,B_N, σ) | impl:PAPER_ISSUES.md | P-31, suggested fix | "(B0, …, BN, σ) ← Decode(C)" | edit in place; numbering 1–52 unchanged |
 | 138 | Appendix A | result column per instantiation | gen:tables/security.tex | header "Default", "Aggregate" | two columns | generated |
 | 139 | Data availability | measured commits named in ARTIFACT.md | impl:ARTIFACT.md | §5, ll. 102–104 | M9 at `4e134dc` and `b175599`; the exploratory session at `b1cc711` | named by reference only |
-| 140 | §8.8 | encoding-check cost | — | BM §8, "The cost of D-81's encoding checks" | "_Not run yet_" at the committed version | `\pending`. The results exist only uncommitted in the implementation's working tree (author decision, 2026-10-04). |
+| 140 | §8.8 | the measured binaries predate §4.7's checks; an exploratory run on the same machine | BM@c6bbbaa; impl:BENCH_LOG.md@c6bbbaa | BM §8 (l. 925, "Exploratory analyses"), block "The cost of D-81's encoding checks" (l. 1043); BENCH_LOG l. 174 | "D-81 added decode-time canonical-encoding checks … after M9"; run at `25242b8` on M9's machine state | Filled at `c6bbbaa`; it replaces the `\pending`. The run is exploratory, and the text says so. |
+| 141 | §8.8 | byte comparisons | impl:DECISIONS.md@c6bbbaa | D-81, l. 1002; D-87, l. 1106 | "Both are byte comparisons"; "the checks are a few byte comparisons" | exact |
+| 142 | §8.8 | a few nanoseconds per signature or key | BM@c6bbbaa | "The checks" table (ll. 1065–1068) | 1.17 to 11.16 ns | qualitative summary of rows 143–145 |
+| 143 | §8.8 | about 1.9 ns per signature, honest | BM@c6bbbaa | l. 1065, "signature checks (R's y < p, s < ℓ), honest signatures" | 1.89 ns (runs 1.85, 1.85, 1.89) | rounded to 1 d.p. |
+| 144 | §8.8 | about 1.2 ns per key, honest | BM@c6bbbaa | l. 1067, "key check (y < p), honest keys" | 1.17 ns (runs 1.22, 1.19, 1.14) | rounded to 1 d.p. |
+| 145 | §8.8 | at most about 11 ns on the worst passing inputs | BM@c6bbbaa | l. 1066, signature worst passing input; l. 1068, key worst passing input | 11.16 ns (signature); 6.10 ns (key) | max = 11.16, rounded to the integer |
+| 146 | §8.8 | both arms of the default instantiation, every cache state, N ∈ {1, 3, 10} | BM@c6bbbaa | "What they add to a chain" table (ll. 1078–1089) | C warm, C cold, D hit, D miss at N = 1, 3, 10 | 12 rows |
+| 147 | §8.8 | in the medium profile | BM@c6bbbaa | table heading, l. 1072: "What they add to a chain (medium profile)" | medium profile only | **Added to the author's text.** The source computes shares for the medium profile only. Applying the same counts to the small profile's D hit at N = 10 (30.2 µs) would give 0.41% worst-case, above 0.4%. So the claim must not be stated for every profile. |
+| 148 | §8.8 | under 0.1% on honest inputs | BM@c6bbbaa | "Share" column, l. 1088 (D, hit, N = 10) | max 0.0614% (min 0.0065%, D miss N = 10) | max < 0.1 |
+| 149 | §8.8 | under 0.4% on worst-case inputs | BM@c6bbbaa | "Share" column, bracketed, l. 1088 (D, hit, N = 10) | max 0.3628% | max < 0.4 |
