@@ -163,9 +163,10 @@ This paper makes five contributions.
           (\cref{sec:eval-method,sec:eval-results,sec:eval-claims}).
 \end{enumerate}
 We report the aggregation result in full because the design is a natural
-one: compact signatures over multi-hop chains are an obvious goal, and the
-cost of reaching it is not visible until the alternatives are measured side
-by side.
+one: compact signatures over multi-hop chains are an obvious goal, and
+while BLS verification is known to cost far more per signature than
+Ed25519, whether aggregation's savings close that gap in a delegation
+chain, once caching is accounted for, had not been measured.
 
 \paragraph{Scope and limitations.}
 The protocol is implemented and evaluated, but not formally verified. The
@@ -324,7 +325,7 @@ collection step on the request path.
 UCAN \citep{ucan-spec} extends capability attenuation to public-key
 settings, signing DAG-CBOR-encoded tokens in a Varsig-headed envelope
 with Ed25519, P-256 or secp256k1.
-UCAN is designed for Web3 contexts and lacks features specific to our
+UCAN was originally designed for Web3 contexts and lacks features specific to our
 setting: a containment relation between capabilities (UCAN 1.0 does
 specify a policy language over command arguments), and MCP transport
 binding.
@@ -2893,7 +2894,7 @@ range of the three runs' medians.
 The plan was frozen and tagged before any measurement. Two amendments
 preceded measurement: a calibration probe, run before and after every
 configuration, as a second throttling signal, and a text correction.
-Two deviations followed it, both approved by the author; the first was
+Two deviations followed it, both approved by the author and both
 decided before any latency result was opened. First, the safety valve, which aborts a run
 with more than 10\% of its configurations flagged as throttled, had
 been implemented per process; it was changed to count per run, as the
@@ -2958,7 +2959,14 @@ profile, where a hit in arm D costs one Ed25519 verification,
 531~\textmu{}s for one BLS verification against 20.6~\textmu{}s for one
 strict Ed25519 verification (\cref{tab:primitives}). For the default
 instantiation at $N = 3$, medium, a verification takes 109~\textmu{}s
-without the prefix cache and 26.4~\textmu{}s with it.
+without the prefix cache and 26.4~\textmu{}s with it. That one BLS
+verification costs far more than one Ed25519 verification is well known.
+What the measurement adds is that aggregation's two savings do not close
+the gap in delegation chains. The multi-pairing saves 41--61\% against
+individual BLS signatures (warm, $N \geq 2$), but against per-hop
+Ed25519 the pairing floor is never amortized at the chain lengths we
+measured. And the byte saving is small, because the token bodies, not
+the signatures, dominate a chain.
 
 \begin{figure}[t]
 \centering
@@ -3076,16 +3084,19 @@ published times here. Both sides run the same code, so that factor
 cannot come from what is timed; it may come from the chip, the build,
 the toolchain or the operating system, which the run cannot tell apart.
 Against AIP's code on this machine, arm E took 0.60--0.82 of its time
-(0.60--0.64 in the small profile, 0.75--0.82 in the medium one), within
-the factor of 3 that the plan set as a sanity bound for this
-comparison. AIP's method is also sensitive to a cold start: in each
+(0.60--0.64 in the small profile, 0.75--0.82 in the medium one).
+Against AIP's published figures, arm E fell outside the factor of 3 that
+the plan set as a sanity bound, in the small profile and at the shortest
+medium chain, and that is what prompted this investigation; against
+AIP's code on this machine it is well within that bound. AIP's method is also sensitive to a cold start: in each
 build, the first process ran slower than the next two at the shallowest
 depths, and each of AIP's published figures comes from a single such
 process.
 
 Exploratory, and on the same machine, the default instantiation's
-verification --- which also checks parameter binding, receipts,
-revocation and replay --- takes 109~\textmu{}s at $N = 3$ in the medium
+verification --- which also checks parameter binding, revocation and
+replay, and would check approval receipts where the policy required
+them; the measured chain carries none --- takes 109~\textmu{}s at $N = 3$ in the medium
 profile, against 147~\textmu{}s for Biscuit's chained-token verification
 at matching depth (\cref{tab:positioning}). Across $N$ it takes
 0.68--0.86 of arm E's time, and with a prefix-cache hit 0.08--0.40.
@@ -3222,8 +3233,10 @@ federated identity infrastructure with proof-of-possession, policy
 ceilings pinned by the receiving organization, and revocation by
 identity--key binding. UCAN's specification recommends memoizing
 validated delegation proofs, so that tokens sharing a proof need not
-recheck it \citep{ucan-spec}; that is the prefix caching the default
-instantiation of DelegationChain uses (\cref{sec:eval-results}).
+recheck it \citep{ucan-spec}; that is the prefix caching we measure for
+the default instantiation as arm D (\cref{sec:eval-results}), an
+optimization a verifier may adopt rather than part of
+\cref{alg:verify}.
 
 \paragraph{Authorization certificates and delegation chains.}
 The problem of composing delegation chains and computing the authority
@@ -3734,8 +3747,8 @@ and against a differential oracle for its policy language, and measured
 it under a plan fixed before measurement. The measurement overturned the
 design choice the protocol was first built around: aggregating BLS
 signatures across the chain is not a net benefit in any configuration we
-measured, because a pairing-based verification floor costs far more
-than the bytes it saves. We report that result in full and specify
+measured, because the time a pairing-based verification floor costs
+far outweighs the bytes aggregation saves. We report that result in full and specify
 DelegationChain over per-hop Ed25519 signatures instead.
 
 The analysis remains a set of proof sketches, and the measurements come
@@ -3802,6 +3815,7 @@ measured commits that \texttt{ARTIFACT.md} names, not later builds.
 \printbibliography
 
 \appendix
+\crefalias{section}{appendix}
 
 \section{Security Suite}
 \label{app:security-suite}

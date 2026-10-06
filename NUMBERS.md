@@ -5,20 +5,22 @@ benchmark is listed here with its source. Generated tables (`generated/tables/*.
 (`generated/figures/*.pdf`) are included unedited and are not re-listed cell by cell.
 
 **Sources.**
-- Every row cites the implementation repository (`delegation_chain_impl`) at commit `25242b8`, except rows 140–149.
-  - Those cite `c6bbbaa`, the commit that adds the encoding-check run.
-  - Its `BENCHMARKS.md` §8 block is identical at `60819a5`, the latest commit on 2026-10-06.
-- `BM` = `BENCHMARKS.md` at `25242b8`. Line numbers refer to that file.
-- `impl:` = any other file in the implementation repository at `25242b8`.
-- `gen:` = `generated/` in this repository, copied byte-for-byte from `impl:paper/` at `25242b8`.
-- **Re-checked on 2026-10-06.** Rows 1–113 and 40a–40b were first logged against commit `8ffe91b`, and each was re-checked at `25242b8`.
-  - Every cited value is unchanged.
+- Every row cites the implementation repository (`delegation_chain_impl`) at commit `271d519`.
+- `BM` = `BENCHMARKS.md` at `271d519`. Line numbers refer to that file.
+- `impl:` = any other file in the implementation repository at `271d519`.
+- `gen:` = `generated/` in this repository, copied byte-for-byte from `impl:paper/` at `271d519`.
+- **History of the checks.**
+  - Rows 1–113 were first logged against `8ffe91b`, rows 114–139 against `25242b8`, and rows 140–149 against `c6bbbaa`.
+  - On 2026-10-06 every row was re-checked at `271d519`. Every cited value is unchanged.
   - Line numbers were updated where the files moved:
-    - `BENCHMARKS.md` by 6 lines after its new ratio-figure subsection;
-    - `PAPER_ISSUES.md`, `DECISIONS.md` and `scripts/paper_figures.py` by their new text.
-  - Lines whose wording changed but whose values did not are rows 61, 104 and 105: Q9's flag text and §7's resume note.
-  - `BENCH_PLAN_FROZEN.md`, the test reports and `tests/concurrency.rs` are unchanged between the two commits.
-- **The encoding-check run** was committed in `c6bbbaa`, and §8.8 now reports it (rows 140–149).
+    - `BENCHMARKS.md`: by 6 lines after the ratio-figure subsection, and by 32 after the encoding-check block;
+    - `PAPER_ISSUES.md`: header lines added;
+    - `DECISIONS.md`: notes added to D-81 and D-82;
+    - `scripts/paper_figures.py`: its new text.
+  - Rows 61, 104 and 105 cite lines whose wording changed but whose values did not (Q9's flag text and §7's resume note).
+  - Between `c6bbbaa` and `271d519`, `BENCHMARKS.md` is unchanged.
+  - `BENCH_PLAN_FROZEN.md`, the test reports and `tests/concurrency.rs` are unchanged throughout.
+- **Generated values.** From `25242b8` to `271d519`, the generated tables changed only in comments, the positioning caption and four evidence cells of the claims table, which lost their internal identifiers. No value in them changed.
 
 **Out of scope.** The following are not data and are not listed: section, RFC, algorithm-line and threat
 numbers; years; the policy example's literal values, which are unchanged from earlier revisions; and the
@@ -72,13 +74,13 @@ numbers; years; the policy example's literal values, which are unchanged from ea
 | 22 | §8.1 | one operating-system call (the only unsafe code) | impl:MILESTONES.md | M8, l. 316 | "The QoS FFI call in `qos.rs`, the one permitted `unsafe`" | exact; Cargo.toml `unsafe_code = "deny"` |
 | 23 | §8.1 | blst 0.3.17; ed25519-dalek 2.2.0; biscuit-auth 6.0.0 | BM | §1 Environment, "Crates" row (l. 21) | blst 0.3.17; ed25519-dalek 2.2.0; biscuit-auth 6.0.0 | exact |
 | 24 | §8.1 | rustc 1.97.1 | BM | §1 Environment, "Toolchain" row (l. 20) | rustc 1.97.1 (8bab26f4f 2026-07-14) | exact |
-| 25 | §8.1 | 16 specification defects | impl:PAPER_ISSUES.md | "Sources" bullet (l. 11) | P-15 to P-25 (pre-M0 review); P-26; P-27; P-28 and P-29; P-30 | 11 + 1 + 1 + 2 + 1 = 16. P-01 to P-14 predate the implementation and are not counted. |
+| 25 | §8.1 | 16 specification defects | impl:PAPER_ISSUES.md | "Sources" bullet (l. 12) | P-15 to P-25 (pre-M0 review); P-26; P-27; P-28 and P-29; P-30 | 11 + 1 + 1 + 2 + 1 = 16. P-01 to P-14 predate the implementation and are not counted. |
 
 ## §8.2 Correctness Evaluation
 
 | # | Location | As written | Source file | Location in source | Exact source value | Note |
 |---|---|---|---|---|---|---|
-| 26 | §8.2 Security suite | each instantiation runs 52 tests, 50 shared and 2 specific to it (54 distinct); all passed under both | impl:DECISIONS.md; impl:MILESTONES.md; impl:tests/security.rs; gen:tables/security.tex | D-84, l. 1039; MILESTONES step 3, l. 527; `#[test]` count; table footer | "Each instantiation runs 52 tests: 50 shared and 2 of its own"; 54 `#[test]` in tests/security.rs; footer "Default: 53 of 53 tests passed. Aggregate variant: 53 of 53 tests passed." | 54 = 50 + 2 + 2. The table's 53 per instantiation is these 52 plus `theorem_5_concurrent_replay` (tests/concurrency.rs), which the paper names separately. The table has 55 rows: 51 shared, 2 default-only, 2 aggregate-only. Updated at `25242b8`. |
+| 26 | §8.2 Security suite | each instantiation runs 52 tests, 50 shared and 2 specific to it (54 distinct); all passed under both | impl:DECISIONS.md; impl:MILESTONES.md; impl:tests/security.rs; gen:tables/security.tex | D-84, l. 1043; MILESTONES step 3, l. 527; `#[test]` count; table footer | "Each instantiation runs 52 tests: 50 shared and 2 of its own"; 54 `#[test]` in tests/security.rs; footer "Default: 53 of 53 tests passed. Aggregate variant: 53 of 53 tests passed." | 54 = 50 + 2 + 2. The table's 53 per instantiation is these 52 plus `theorem_5_concurrent_replay` (tests/concurrency.rs), which the paper names separately. The table has 55 rows: 51 shared, 2 default-only, 2 aggregate-only. Updated at `25242b8`. |
 | 27 | §8.2 Concurrent replay | 64 threads | impl:docs/test-reports/concurrent-replay-m6.json | `threads` | 64 | exact |
 | 28 | §8.2 Concurrent replay | 1,000 rounds | same | `rounds` | 1000 | exact |
 | 29 | §8.2 Concurrent replay | 64,000 verifications | same | `verifications` | 64000 | exact (= 64 × 1000) |
@@ -93,8 +95,8 @@ numbers; years; the policy example's literal values, which are unchanged from ea
 | 38 | §8.2 Oracle | 250,533 reflexivity checks, no failures | same | `reflexivity_checks`, `reflexivity_failures` | 250533; 0 | exact |
 | 39 | §8.2 Oracle | completeness 0.9197 overall | same | `completeness_overall.completeness`; oracle.tex | 0.9196892188161083; table 0.9197 | 4 d.p., as the table |
 | 40 | §8.2 Oracle | 0.9991 when no child rule is unsatisfiable | same | `completeness_when_no_child_rule_is_unsatisfiable.completeness` | 0.9991157289709296; table 0.9991 | 4 d.p. |
-| 40a | §8.2 Oracle | 4,176 missed containments | impl:docs/test-reports/policy-oracle-m4.json; impl:PAPER_ISSUES.md; impl:MILESTONES.md | JSON `contains.misses_by_cause.total`; PAPER_ISSUES P-27, l. 276; MILESTONES l. 182 | 4176 | Exact. 51998 − 47822 = 4176 (oracle true minus procedure true, `completeness_overall`). |
-| 40b | §8.2 Oracle | unsatisfiable child rules account for 4,138 | same | JSON `contains.misses_by_cause.other["child rule unsatisfiable"]`; PAPER_ISSUES P-27, l. 277; MILESTONES l. 183 | 4138 | exact |
+| 40a | §8.2 Oracle | 4,176 missed containments | impl:docs/test-reports/policy-oracle-m4.json; impl:PAPER_ISSUES.md; impl:MILESTONES.md | JSON `contains.misses_by_cause.total`; PAPER_ISSUES P-27, l. 281; MILESTONES l. 182 | 4176 | Exact. 51998 − 47822 = 4176 (oracle true minus procedure true, `completeness_overall`). |
+| 40b | §8.2 Oracle | unsatisfiable child rules account for 4,138 | same | JSON `contains.misses_by_cause.other["child rule unsatisfiable"]`; PAPER_ISSUES P-27, l. 282; MILESTONES l. 183 | 4138 | exact |
 | 41 | §8.2 Oracle | half of its pairs are independent | impl:DECISIONS.md | D-58, l. 531 | "half are independent pairs; in the other half, S2 is derived from S1 by mutation" | exact |
 | 42 | §8.2 Oracle | three bugs planted, all caught | impl:MILESTONES.md | M4, l. 165 | "three planted bugs, all caught (D-58)" | exact |
 | 43 | Table 1 (oracle) caption | seed 56324 | gen:tables/oracle.tex; JSON | header comment; `seed` | 56324 | exact |
@@ -146,8 +148,8 @@ numbers; years; the policy example's literal values, which are unchanged from ea
 | 79 | §8.4 Bytes | the 96-byte aggregate is 5.3% of A's chain at N = 3, medium | BM | §4 Q2, l. 775 | "5.3% of A's chain at N = 3, medium" | exact; 96/1826 = 0.0526 |
 | 80 | §8.4 Bytes | 13.6% for C's N+1 signatures | BM | §4 Q2, l. 775 | "against 13.6% for C's N + 1 signatures" | exact; 256/1881 = 0.1361 |
 | 81 | §8.4 Bytes | 48-byte BLS keys where Ed25519's are 32 bytes | BM | Summary, l. 9 | "48-byte BLS keys where Ed25519's are 32" | exact |
-| 82 | Figure 5 caption | means over 20 sampled chains; break-even from N = 2 | BM; impl:scripts/paper_figures.py | Q2, l. 156; Q2 medium, l. 175; figures script l. 233 | "exact means over 20 sampled chains"; "break-even: N = 2" | exact. Since `25242b8` the caption is the generated macro (`gen:figures/captions.tex`), not typed. |
-| 83 | Figures 3–5 captions | pooled medians of three runs; error bars are the range of the three runs' medians | impl:scripts/paper_figures.py | `ERRBARS`, l. 217 | "error bars are the range of the three runs' medians" | exact. Since `25242b8` the caption is the generated macro (`gen:figures/captions.tex`), not typed. |
+| 82 | Figure 6 caption | means over 20 sampled chains; break-even from N = 2 | BM; impl:scripts/paper_figures.py | Q2, l. 156; Q2 medium, l. 175; figures script l. 233 | "exact means over 20 sampled chains"; "break-even: N = 2" | exact. Since `25242b8` the caption is the generated macro (`gen:figures/captions.tex`), not typed. |
+| 83 | Figures 4–6 captions | pooled medians of three runs; error bars are the range of the three runs' medians | impl:scripts/paper_figures.py | `ERRBARS`, l. 217 | "error bars are the range of the three runs' medians" | exact. Since `25242b8` the caption is the generated macro (`gen:figures/captions.tex`), not typed. |
 | 84 | §8.4 Cost model | α = 566 µs, β = 193 µs | BM | Q3 table, warm medium (l. 274); §4 Q3, l. 779 | 566 [566, 566]; 193 [193, 193] | exact |
 | 85 | §8.4 Cost model | R² = 0.9999 | BM | same | 0.9999 | exact |
 | 86 | §8.4 Cost model | N = α/β ≈ 2.9 | BM | §4 Q3, l. 780 | "N = α/β ≈ 2.9" | 566/193 = 2.93 |
@@ -189,7 +191,7 @@ numbers; years; the policy example's literal values, which are unchanged from ea
 | 112 | §9.2 Limitations | 249 under BLS | BM | Q2, l. 267; §5 l. 847 | "BLS 249 bytes" | exact |
 | 113 | §9.2 Limitations | N + 1 certificates on a cold verifier | BM | §5 l. 850 | "Line 24 verifies N + 1 certificates before phase 6" | exact |
 
-## Placeholder pass (implementation commit `25242b8`)
+## Placeholder pass (rows first logged at `25242b8`)
 
 | # | Location | As written | Source file | Location in source | Exact source value | Note |
 |---|---|---|---|---|---|---|
@@ -197,13 +199,13 @@ numbers; years; the policy example's literal values, which are unchanged from ea
 | 115 | §8.6 (exploratory) | AIP's code took 0.44–0.46 of its published times | BM | §8 "AIP's own benchmark", table "Here ÷ published (means)", ll. 1026–1031 | 0.44 (depth 0), 0.46 (depths 1, 2, 3), 0.45 (depths 4, 5) | Min 0.44, max 0.46. By AIP's own statistic: the median of the three unmodified runs' means. BM text l. 1036 cites only depths 0 and 4. |
 | 116 | §8.6 (exploratory) | arm E took 0.60–0.82 of AIP's code here | BM | l. 1039; table "E ÷ AIP here (medians; small / medium)" | "0.60–0.64 (small) and 0.75–0.82 (medium)" | Min 0.60 (small, depth 0); max 0.82 (medium, depth 4). |
 | 117 | §8.6 (exploratory) | 0.60–0.64 small, 0.75–0.82 medium | BM | l. 1039 | same | exact |
-| 118 | §8.6 (exploratory) | within the factor of 3 the plan set as a sanity bound | impl:BENCH_PLAN_FROZEN.md; BM | plan l. 173; BM l. 1039 | "more than about 3× at matching depth"; "within the sanity rule's 3×" | exact |
+| 118 | §8.6 (exploratory) | outside the factor of 3 against AIP's published figures, in the small profile and at the shortest medium chain; well within it against AIP's code here | impl:BENCH_PLAN_FROZEN.md; BM | plan l. 173; BM Summary l. 11; Q9 table ll. 350–353 and 355; l. 1039 | "more than about 3× at matching depth"; outside 3× "in the small profile at N = 1, 2, 3, 5 and the medium profile at N = 1"; E/AIP published 0.26, 0.28, 0.28, 0.29 (small), 0.32 (medium, N=1); E ÷ AIP here 0.60–0.82 | "Shortest medium chain" = medium, N = 1; the small profile has published figures at N = 1, 2, 3, 5 only. "Well within" means 0.60–0.82, against the bound of 1/3 to 3. Reworded on 2026-10-06. |
 | 119 | §8.6 (exploratory) | cold start: first process slower than the next two at the shallowest depths; published figures from a single process | BM | l. 1041; per-run columns ll. 1026–1027 | depth 0 means 0.164, 0.082, 0.082 ms; depth 1: 0.192, 0.134, 0.133 | qualitative, as the source states it |
-| 120 | §8.6 (exploratory) | default instantiation 109 µs at N = 3, medium | gen:tables/positioning.tex; BM | row "3 (2)", "C, warm"; l. 1069 | 109 | exact; = row #7 |
+| 120 | §8.6 (exploratory) | default instantiation 109 µs at N = 3, medium | gen:tables/positioning.tex; BM | row "3 (2)", "C, warm"; l. 1101 | 109 | exact; = row #7 |
 | 121 | §8.6 (exploratory) | 147 µs for Biscuit at matching depth | same | row "3 (2)", "E" | 147 | exact |
-| 122 | §8.6 (exploratory) | 0.68–0.86 of arm E's time | same | column "C ÷ E" (ll. 1067–1071) | 0.86 (N=1) to 0.68 (N=10) | min and max of the column |
+| 122 | §8.6 (exploratory) | 0.68–0.86 of arm E's time | same | column "C ÷ E" (ll. 1099–1103) | 0.86 (N=1) to 0.68 (N=10) | min and max of the column |
 | 123 | §8.6 (exploratory) | prefix-cache hit 0.08–0.40 | same | column "D ÷ E" | 0.40 (N=1) to 0.08 (N=10) | min and max of the column |
-| 124 | Table 6 (positioning) | caption | gen:tables/captions.tex | `\tabcapPositioning` | generated macro | Included unedited. It names "M9", "D-79" and "paper Table 1", which is Table 7 here; flagged for a generator fix. |
+| 124 | Table 6 (positioning) | caption | gen:tables/captions.tex | `\tabcapPositioning` | generated macro | Included unedited. At `271d519` it has no internal identifiers and cites Table 7, the comparison table. |
 | 125 | §8.7 (exploratory) | N = 3; arms A and C; small, medium, large; three runs | BM | §8 "Phase breakdown", "What ran" (l. 935) | same | exact |
 | 126 | §8.7 (exploratory) | five categories and their algorithm lines | BM | "The categories" (ll. 937–942) | decoding l. 2, 4–6; policy 32–37; identity 23–28; cryptography 47–48 and 24, 43, 49, plus point validation | exact |
 | 127 | §8.7 (exploratory) | shares agree across runs to within 0.7 percentage points | BM | l. 1001; "Run agreement" table | 0.7 (C warm N=3 small) is the largest share difference | exact |
@@ -214,18 +216,26 @@ numbers; years; the policy example's literal values, which are unchanged from ea
 | 132 | §8.7 (exploratory) | arm C large: decoding 30.9%, policy 25.2% | BM | Decoding and Policy rows, "C, large" (ll. 953–954) | 30.9%; 25.2% | exact |
 | 133 | §8.7 (exploratory) | identity at most 0.2% | BM | Identity row (l. 955); l. 1009 | max 0.2% (C small, C medium) | exact |
 | 134 | §8.7 (exploratory) | probe flagged 5 of the 18 configurations, none re-run; the valve would have aborted | BM | l. 1010 | "flagged 5 of 18 configurations … None was re-run … would have aborted the run" | exact; the valve is more than 10% (row #56) |
-| 135 | §5.6 (P-33) | one value, 60 seconds, for both | impl:DECISIONS.md | D-82, l. 1016 | "keeps its default of 60 seconds. One bound on clock skew serves both the nonce TTL and revocation retention." | exact |
+| 135 | §5.6 (P-33) | one value, 60 seconds, for both | impl:DECISIONS.md | D-82, l. 1018 | "keeps its default of 60 seconds. One bound on clock skew serves both the nonce TTL and revocation retention." | exact |
 | 136 | §4.7 (P-32) | signature checks at line 2; key checks at registration and line 24; small-order R at line 49 | impl:DECISIONS.md; impl:PAPER_ISSUES.md | D-81; P-32 "What the implementation does" | "A failure in a chain or receipt is L02"; keys at registration and certificate decoding (line 24); "rejects a small-order R at line 49" | line numbers, not measurements |
 | 137 | Alg. 1 line 2 (P-31) | (B_0,…,B_N, σ) | impl:PAPER_ISSUES.md | P-31, suggested fix | "(B0, …, BN, σ) ← Decode(C)" | edit in place; numbering 1–52 unchanged |
 | 138 | Appendix A | result column per instantiation | gen:tables/security.tex | header "Default", "Aggregate" | two columns | generated |
 | 139 | Data availability | measured commits named in ARTIFACT.md | impl:ARTIFACT.md | §5, ll. 102–104 | M9 at `4e134dc` and `b175599`; the exploratory session at `b1cc711` | named by reference only |
-| 140 | §8.8 | the measured binaries predate §4.7's checks; an exploratory run on the same machine | BM@c6bbbaa; impl:BENCH_LOG.md@c6bbbaa | BM §8 (l. 925, "Exploratory analyses"), block "The cost of D-81's encoding checks" (l. 1043); BENCH_LOG l. 174 | "D-81 added decode-time canonical-encoding checks … after M9"; run at `25242b8` on M9's machine state | Filled at `c6bbbaa`; it replaces the `\pending`. The run is exploratory, and the text says so. |
-| 141 | §8.8 | byte comparisons | impl:DECISIONS.md@c6bbbaa | D-81, l. 1002; D-87, l. 1106 | "Both are byte comparisons"; "the checks are a few byte comparisons" | exact |
-| 142 | §8.8 | a few nanoseconds per signature or key | BM@c6bbbaa | "The checks" table (ll. 1065–1068) | 1.17 to 11.16 ns | qualitative summary of rows 143–145 |
-| 143 | §8.8 | about 1.9 ns per signature, honest | BM@c6bbbaa | l. 1065, "signature checks (R's y < p, s < ℓ), honest signatures" | 1.89 ns (runs 1.85, 1.85, 1.89) | rounded to 1 d.p. |
-| 144 | §8.8 | about 1.2 ns per key, honest | BM@c6bbbaa | l. 1067, "key check (y < p), honest keys" | 1.17 ns (runs 1.22, 1.19, 1.14) | rounded to 1 d.p. |
-| 145 | §8.8 | at most about 11 ns on the worst passing inputs | BM@c6bbbaa | l. 1066, signature worst passing input; l. 1068, key worst passing input | 11.16 ns (signature); 6.10 ns (key) | max = 11.16, rounded to the integer |
-| 146 | §8.8 | both arms of the default instantiation, every cache state, N ∈ {1, 3, 10} | BM@c6bbbaa | "What they add to a chain" table (ll. 1078–1089) | C warm, C cold, D hit, D miss at N = 1, 3, 10 | 12 rows |
-| 147 | §8.8 | in the medium profile | BM@c6bbbaa | table heading, l. 1072: "What they add to a chain (medium profile)" | medium profile only | **Added to the author's text.** The source computes shares for the medium profile only. Applying the same counts to the small profile's D hit at N = 10 (30.2 µs) would give 0.41% worst-case, above 0.4%. So the claim must not be stated for every profile. |
-| 148 | §8.8 | under 0.1% on honest inputs | BM@c6bbbaa | "Share" column, l. 1088 (D, hit, N = 10) | max 0.0614% (min 0.0065%, D miss N = 10) | max < 0.1 |
-| 149 | §8.8 | under 0.4% on worst-case inputs | BM@c6bbbaa | "Share" column, bracketed, l. 1088 (D, hit, N = 10) | max 0.3628% | max < 0.4 |
+| 140 | §8.8 | the measured binaries predate §4.7's checks; an exploratory run on the same machine | BM; impl:BENCH_LOG.md | BM §8 (l. 925, "Exploratory analyses"), block "The cost of D-81's encoding checks" (l. 1043); BENCH_LOG l. 174 | "D-81 added decode-time canonical-encoding checks … after M9"; run at `25242b8` on M9's machine state | Filled at `c6bbbaa`; it replaces the `\pending`. The run is exploratory, and the text says so. |
+| 141 | §8.8 | byte comparisons | impl:DECISIONS.md | D-81, l. 1002; D-87, l. 1111 | "Both are byte comparisons"; "the checks are a few byte comparisons" | exact |
+| 142 | §8.8 | a few nanoseconds per signature or key | BM | "The checks" table (ll. 1065–1068) | 1.17 to 11.16 ns | qualitative summary of rows 143–145 |
+| 143 | §8.8 | about 1.9 ns per signature, honest | BM | l. 1065, "signature checks (R's y < p, s < ℓ), honest signatures" | 1.89 ns (runs 1.85, 1.85, 1.89) | rounded to 1 d.p. |
+| 144 | §8.8 | about 1.2 ns per key, honest | BM | l. 1067, "key check (y < p), honest keys" | 1.17 ns (runs 1.22, 1.19, 1.14) | rounded to 1 d.p. |
+| 145 | §8.8 | at most about 11 ns on the worst passing inputs | BM | l. 1066, signature worst passing input; l. 1068, key worst passing input | 11.16 ns (signature); 6.10 ns (key) | max = 11.16, rounded to the integer |
+| 146 | §8.8 | both arms of the default instantiation, every cache state, N ∈ {1, 3, 10} | BM | "What they add to a chain" table (ll. 1078–1089) | C warm, C cold, D hit, D miss at N = 1, 3, 10 | 12 rows |
+| 147 | §8.8 | in the medium profile | BM | table heading, l. 1072: "What they add to a chain (medium profile)" | medium profile only | **Added to the author's text.** The source computes shares for the medium profile only. Applying the same counts to the small profile's D hit at N = 10 (30.2 µs) would give 0.41% worst-case, above 0.4%. So the claim must not be stated for every profile. |
+| 148 | §8.8 | under 0.1% on honest inputs | BM | "Share" column, l. 1088 (D, hit, N = 10) | max 0.0614% (min 0.0065%, D miss N = 10) | max < 0.1 |
+| 149 | §8.8 | under 0.4% on worst-case inputs | BM | "Share" column, bracketed, l. 1088 (D, hit, N = 10) | max 0.3628% | max < 0.4 |
+
+## Text fixes (2026-10-06, implementation commit `271d519`)
+
+| # | Location | As written | Source file | Location in source | Exact source value | Note |
+|---|---|---|---|---|---|---|
+| 150 | §8.4 Caching | the multi-pairing saves 41–61% against individual BLS (warm, N ≥ 2) | BM | §4 Q4, l. 785 | "A/A-ind is 0.387–0.594 warm for N ≥ 2" | Derived: 1 − 0.594 = 0.406 → 41%; 1 − 0.387 = 0.613 → 61%. **"(warm, N ≥ 2)" was added to the author's text:** cold, the ratio is 0.701–0.840 (saving 16–30%), so the range does not hold unqualified. |
+| 151 | §8.4 Caching | the pairing floor is never amortized at the chain lengths we measured | BM | Summary, l. 7; Verdicts table (ll. 55–70) | "not a net benefit in any cell"; "No N from 1 to 10 reverses this" | Qualitative. The chain lengths are N = 1–10 (row 49). |
+| 152 | §8.6 | the measured chain carries no approval receipts | impl:BENCH_PLAN_FROZEN.md; BM | plan §3, l. 34 (medium: "The invocation hits rule 1 (500, no approval)"); BM l. 1052 | "The medium profile has no receipts" | 0 receipts in the medium profile, which the positioning table uses |

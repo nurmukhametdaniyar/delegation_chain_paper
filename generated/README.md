@@ -12,6 +12,6 @@ byte-for-byte so that the paper builds from a clean clone.
   `captions.tex` files) from the implementation repository over these
   files, then rebuild.
 
-Copied on 2026-10-04 from implementation commit `25242b8`
-("The cost of D-81's encoding checks: an exploratory micro-benchmark
-(D-87), not run yet").
+Copied on 2026-10-06 from implementation commit `271d519`
+("Paper text for revision 2026-10-06: "not in the frozen plan", Table 7,
+Appendix A").
